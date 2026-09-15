@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { UserProfile } from '../../types';
+import { getDataProvider } from '../../data/DataProvider';
 import { PlanYourVisit } from '../PlanYourVisit';
 import { Calendar, Utensils, Star, CheckCircle, Clock, Users, ArrowRight, MessageSquare, AlertCircle } from 'lucide-react';
 
@@ -94,19 +95,49 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onUpdateUser }) => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [custRes, resRes, fbRes, outRes] = await Promise.all([
-        supabase.from('customers').select('dietary_preferences,allergies,preferred_seating,total_visits,loyalty_tier,loyalty_points').eq('user_id', user.id).maybeSingle(),
-        supabase.from('reservations').select('id,booking_code,reservation_date,time_slot,guests,status,special_occasion,dietary_prefs,outlets(name)').eq('customer_id', user.id).order('reservation_date', { ascending: false }),
-        supabase.from('feedback').select('id,outlet,rating,comment,message,created_at,visit_date').or(`user_id.eq.${user.id},customer_id.eq.${user.id}`).order('created_at', { ascending: false }),
-        supabase.from('outlets').select('id,name').eq('is_active', true).order('name'),
+      const provider = getDataProvider();
+      const [providerRes, providerFb, providerOutlets] = await Promise.all([
+        provider.getReservations(user).catch(() => []),
+        provider.getFeedback(user).catch(() => []),
+        provider.getOutlets(user).catch(() => []),
       ]);
-      if (custRes.data) setCustomer(custRes.data as CustomerRow);
-      if (resRes.data) {
-        setReservations((resRes.data as any[]).map(r => ({
-          ...r,
-          outlet: r.outlets?.name || r.outlet || 'Mayflower Outlet'
+
+      try {
+        const custRes = await supabase.from('customers').select('dietary_preferences,allergies,preferred_seating,total_visits,loyalty_tier,loyalty_points').eq('user_id', user.id).maybeSingle();
+        if (custRes?.data) setCustomer(custRes.data as CustomerRow);
+      } catch {}
+
+      if (providerRes && providerRes.length > 0) {
+        setReservations(providerRes.map((r: any) => ({
+          id: r.id,
+          booking_code: r.bookingCode,
+          outlet: r.outlet,
+          reservation_date: r.date,
+          time_slot: r.timeSlot,
+          guests: r.guests,
+          status: r.status,
+          booked_at: r.bookedAt,
+          special_occasion: r.specialRequests || null,
+          dietary_prefs: null,
         })));
+      } else {
+        const { data: resData } = await supabase.from('reservations').select('id,booking_code,reservation_date,time_slot,guests,status,special_occasion,dietary_prefs,outlets(name)').eq('customer_id', user.id).order('reservation_date', { ascending: false });
+        if (resData) {
+          setReservations((resData as any[]).map(r => ({
+            ...r,
+            outlet: r.outlets?.name || r.outlet || 'Mayflower Outlet'
+          })));
+        }
       }
+
+      const dbFb = providerFb.map((f: any) => ({
+        id: f.id,
+        outlet: f.outlet || 'Mayflower Outlet',
+        rating: f.rating || 5,
+        comment: f.message || 'Great experience!',
+        created_at: f.createdAt,
+        visit_date: f.createdAt
+      }));
 
       let localFb: FeedbackRow[] = [];
       try {
@@ -114,22 +145,13 @@ export const CustomerDashboard: React.FC<Props> = ({ user, onUpdateUser }) => {
         if (saved) localFb = JSON.parse(saved);
       } catch {}
 
-      const dbFb = (fbRes.data ?? []).map((f: any) => ({
-        id: f.id,
-        outlet: f.outlet || 'Mayflower Outlet',
-        rating: f.rating || 5,
-        comment: f.comment || f.message || 'Great experience!',
-        created_at: f.created_at,
-        visit_date: f.visit_date
-      }));
-
-      const combinedIds = new Set(dbFb.map(f => f.id));
-      const extraLocal = localFb.filter(f => !combinedIds.has(f.id));
+      const combinedIds = new Set(dbFb.map((f: any) => f.id));
+      const extraLocal = localFb.filter((f: any) => !combinedIds.has(f.id));
       setFeedbackHistory([...dbFb, ...extraLocal]);
 
-      if (outRes.data && outRes.data.length > 0) {
-        setOutlets(outRes.data as OutletRow[]);
-        setFbOutlet(outRes.data[0].name);
+      if (providerOutlets && providerOutlets.length > 0) {
+        setOutlets(providerOutlets.map((o: any) => ({ id: o.id, name: o.name })));
+        setFbOutlet(providerOutlets[0].name);
       } else {
         setOutlets(DEFAULT_OUTLETS);
         setFbOutlet(DEFAULT_OUTLETS[0].name);

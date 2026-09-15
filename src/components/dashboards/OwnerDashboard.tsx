@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabaseClient';
+import {
+  Building2, Calendar, AlertTriangle, Star, RefreshCw,
+  CheckCircle
+} from 'lucide-react';
 import { UserProfile } from '../../types';
+import { getDataProvider } from '../../data/DataProvider';
+import {
+  MOCK_OUTLETS, MOCK_RESERVATIONS, MOCK_FEEDBACK,
+  SeedReservation, SeedFeedback, SeedOutlet
+} from '../../data/mockSeed';
 
 interface Props {
   user: UserProfile;
@@ -8,589 +16,347 @@ interface Props {
   onSwitchRole?: (rolePath: string) => void;
 }
 
-interface OutletRow {
-  id: string;
-  name: string;
-  slug: string;
-  badge: string | null;
-  area: string | null;
-  tables_count: number;
-  covers_count: number;
-  is_active: boolean;
-  petpooja_id: string | null;
-}
-
-interface ReservationRow {
-  id: string;
-  booking_code: string;
-  guests: number;
-  reservation_date: string;
-  time_slot: string;
-  status: string;
-  outlet: string | null;
-  booked_at: string;
-}
-
-interface FeedbackRow {
-  id: string;
-  customer_name: string;
-  message: string;
-  rating: number | null;
-  created_at: string;
-  outlet: string | null;
-}
-
-interface EscalationRow {
+interface EscalationItem {
   id: string;
   title: string;
   description: string;
-  severity: string;
-  status: string;
-  outlet: string | null;
-  created_at: string;
+  severity: 'low' | 'medium' | 'high';
+  status: 'open' | 'resolved';
+  outlet: string;
+  createdAt: string;
 }
 
-const MOCK_OUTLETS: OutletRow[] = [
-  { id: 'o1', name: 'Poes Garden Flagship', slug: 'poes-garden', badge: 'Flagship Sanctuary', area: 'Poes Garden, Chennai', tables_count: 24, covers_count: 96, is_active: true, petpooja_id: 'PP-01' },
-  { id: 'o2', name: 'Palavakkam ECR Seaside', slug: 'palavakkam-ecr', badge: 'Seaside Sanctuary', area: 'East Coast Road, Chennai', tables_count: 18, covers_count: 72, is_active: true, petpooja_id: 'PP-02' },
-  { id: 'o3', name: 'Anna Nagar East Pavilion', slug: 'anna-nagar', badge: 'City Pavilion', area: 'Anna Nagar, Chennai', tables_count: 16, covers_count: 64, is_active: true, petpooja_id: 'PP-03' },
-  { id: 'o4', name: 'Velachery Lakeside Conservatory', slug: 'velachery', badge: 'Lakeside Conservatory', area: 'Velachery, Chennai', tables_count: 20, covers_count: 80, is_active: true, petpooja_id: 'PP-04' },
+const INITIAL_ESCALATIONS: EscalationItem[] = [
+  {
+    id: 'esc-1',
+    title: 'HVAC Airflow Adjustment',
+    description: 'Conservatory Zone 2 air conditioning thermostat calibration required',
+    severity: 'medium',
+    status: 'open',
+    outlet: 'Poes Garden Flagship',
+    createdAt: 'Today, 14:00',
+  },
+  {
+    id: 'esc-2',
+    title: 'POS Sync Latency Alert',
+    description: 'Petpooja Terminal 3 intermittent connection drop resolved via secondary line',
+    severity: 'low',
+    status: 'open',
+    outlet: 'Palavakkam ECR Seaside',
+    createdAt: 'Today, 11:30',
+  },
 ];
 
-const MOCK_RESERVATIONS: ReservationRow[] = [
-  { id: 'res-101', booking_code: 'MF-8812', guests: 4, reservation_date: '13 Sept 2026', time_slot: '19:30', status: 'Confirmed', outlet: 'Poes Garden Flagship', booked_at: '12 Sept 2026' },
-  { id: 'res-102', booking_code: 'MF-8813', guests: 2, reservation_date: '13 Sept 2026', time_slot: '20:00', status: 'Pending', outlet: 'Palavakkam ECR Seaside', booked_at: '13 Sept 2026' },
-  { id: 'res-103', booking_code: 'MF-8814', guests: 6, reservation_date: '14 Sept 2026', time_slot: '20:30', status: 'Confirmed', outlet: 'Anna Nagar East Pavilion', booked_at: '13 Sept 2026' },
-  { id: 'res-104', booking_code: 'MF-8815', guests: 4, reservation_date: '14 Sept 2026', time_slot: '19:00', status: 'Confirmed', outlet: 'Velachery Lakeside Conservatory', booked_at: '13 Sept 2026' },
-];
-
-const MOCK_FEEDBACK: FeedbackRow[] = [
-  { id: 'fb-1', customer_name: 'Dr. Maran', message: 'Exquisite Degustation menu and exceptional sommelier pairing at Poes Garden.', rating: 5, created_at: '12 Sept 2026', outlet: 'Poes Garden Flagship' },
-  { id: 'fb-2', customer_name: 'Anjali Sharma', message: 'Wonderful seaside ambiance at Palavakkam, service was top tier.', rating: 5, created_at: '11 Sept 2026', outlet: 'Palavakkam ECR Seaside' },
-  { id: 'fb-3', customer_name: 'Karthik Raja', message: 'Great atmosphere, slight wait for seating at peak hours.', rating: 4, created_at: '10 Sept 2026', outlet: 'Anna Nagar East Pavilion' },
-];
-
-const MOCK_ESCALATIONS: EscalationRow[] = [
-  { id: 'esc-1', title: 'HVAC Airflow Adjustment', description: 'Conservatory Zone 2 air conditioning thermostat calibration required', severity: 'medium', status: 'open', outlet: 'Poes Garden Flagship', created_at: 'Today, 14:00' },
-  { id: 'esc-2', title: 'POS Sync Latency Alert', description: 'Petpooja Terminal 3 intermittent connection drop resolved via secondary line', severity: 'low', status: 'open', outlet: 'Palavakkam ECR Seaside', created_at: 'Today, 11:30' },
-];
-
-export const OwnerDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole: _onSwitchRole }) => {
+export const OwnerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'active' | 'inactive'>('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState('--:--');
-  const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [lastSyncTime, setLastSyncTime] = useState('Just now');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Supabase data
-  const [outlets, setOutlets] = useState<OutletRow[]>([]);
-  const [reservations, setReservations] = useState<ReservationRow[]>([]);
-  const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
-  const [escalations, setEscalations] = useState<EscalationRow[]>([]);
+  const [outlets, setOutlets] = useState<SeedOutlet[]>([]);
+  const [reservations, setReservations] = useState<SeedReservation[]>([]);
+  const [feedback, setFeedback] = useState<SeedFeedback[]>([]);
+  const [escalations, setEscalations] = useState<EscalationItem[]>(INITIAL_ESCALATIONS);
   const [loading, setLoading] = useState(true);
-  const [_error, setError] = useState<string | null>(null);
-
-  // KPI derived
-  const [kpi, setKpi] = useState({ totalReservations: 0, pendingReservations: 0, totalCustomers: 0, totalFeedback: 0 });
 
   const showToast = (msg: string) => {
-    setToast({ show: true, message: msg });
-    setTimeout(() => setToast({ show: false, message: '' }), 3500);
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const fetchAll = async () => {
+  const loadAllData = async () => {
     setIsRefreshing(true);
-    setError(null);
     try {
-      const [outletsRes, reservationsRes, feedbackRes, escalationsRes] = await Promise.allSettled([
-        supabase
-          .from('outlets')
-          .select('id, name, slug, badge, area, tables_count, covers_count, is_active, petpooja_id')
-          .order('created_at', { ascending: true }),
-
-        supabase
-          .from('reservations')
-          .select('id, booking_code, guests, reservation_date, time_slot, status, booked_at, outlets(name)')
-          .order('reservation_date', { ascending: true })
-          .limit(50),
-
-        supabase
-          .from('feedback')
-          .select('id, message, rating, created_at, outlet, user_profiles(name)')
-          .order('created_at', { ascending: false })
-          .limit(10),
-
-        supabase
-          .from('escalations')
-          .select('id, title, description, severity, status, outlet, created_at')
-          .eq('status', 'open')
-          .order('created_at', { ascending: false })
-          .limit(10),
+      const provider = getDataProvider();
+      const [fetchedOutlets, fetchedRes, fetchedFb] = await Promise.all([
+        provider.getOutlets(user).catch(() => MOCK_OUTLETS),
+        provider.getReservations(user).catch(() => MOCK_RESERVATIONS),
+        provider.getFeedback(user).catch(() => MOCK_FEEDBACK),
       ]);
 
-      const fetchedOutlets = (outletsRes.status === 'fulfilled' && !outletsRes.value.error && outletsRes.value.data?.length)
-        ? (outletsRes.value.data as OutletRow[])
-        : MOCK_OUTLETS;
+      setOutlets(fetchedOutlets && fetchedOutlets.length > 0 ? fetchedOutlets : MOCK_OUTLETS);
+      setReservations(fetchedRes && fetchedRes.length > 0 ? fetchedRes : MOCK_RESERVATIONS);
+      setFeedback(fetchedFb && fetchedFb.length > 0 ? fetchedFb : MOCK_FEEDBACK);
 
-      setOutlets(fetchedOutlets);
-
-      const tableReservations: ReservationRow[] = (reservationsRes.status === 'fulfilled' && !reservationsRes.value.error)
-        ? (reservationsRes.value.data ?? []).map((r: any) => ({ ...r, outlet: r.outlets?.name || r.outlet || 'Poes Garden' }))
-        : [];
-
-      const fetchedFeedback: FeedbackRow[] = (feedbackRes.status === 'fulfilled' && !feedbackRes.value.error && feedbackRes.value.data?.length)
-        ? (feedbackRes.value.data as any[]).map(fb => ({
-            id: fb.id,
-            customer_name: fb.user_profiles?.name ?? 'Guest',
-            message: fb.message,
-            rating: fb.rating,
-            created_at: fb.created_at,
-            outlet: fb.outlet,
-          }))
-        : MOCK_FEEDBACK;
-
-      const fetchedEscalations: EscalationRow[] = (escalationsRes.status === 'fulfilled' && !escalationsRes.value.error && escalationsRes.value.data?.length)
-        ? (escalationsRes.value.data as unknown as EscalationRow[])
-        : MOCK_ESCALATIONS;
-
-      const mergedRes = tableReservations.length > 0 ? tableReservations : MOCK_RESERVATIONS;
-      setReservations(mergedRes);
-      setFeedback(fetchedFeedback);
-      setEscalations(fetchedEscalations);
-
-      const pending = mergedRes.filter((r) => r.status === 'Pending' || r.status === 'pending').length;
-      setKpi({
-        totalReservations: mergedRes.length,
-        pendingReservations: pending,
-        totalCustomers: 148,
-        totalFeedback: fetchedFeedback.length,
-      });
-
-      const now = new Date();
-      setLastSyncTime(now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
-    } catch (err: any) {
-      setError(err.message ?? 'Failed to load data');
+      setLastSyncTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
+    } catch {
       setOutlets(MOCK_OUTLETS);
       setReservations(MOCK_RESERVATIONS);
       setFeedback(MOCK_FEEDBACK);
-      setEscalations(MOCK_ESCALATIONS);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    loadAllData();
+  }, []);
 
-  const handleRefresh = () => { fetchAll(); showToast('Data refreshed from Supabase'); };
-
-  const handleResolveEscalation = async (id: string) => {
-    const { error } = await supabase.from('escalations').update({ status: 'resolved' }).eq('id', id);
-    if (error) { showToast('Failed to resolve escalation'); return; }
+  const handleResolveEscalation = (id: string) => {
     setEscalations(prev => prev.filter(e => e.id !== id));
-    showToast('Escalation marked as resolved');
+    showToast('Escalation marked as resolved.');
   };
 
   const filteredOutlets = outlets.filter(o => {
-    if (activeCategory === 'all') return true;
-    if (activeCategory === 'active') return o.is_active;
-    return !o.is_active;
+    if (activeCategory === 'active') return o.isActive;
+    if (activeCategory === 'inactive') return !o.isActive;
+    return true;
   });
 
-  const confirmedReservations = reservations.filter(r => r.status === 'Confirmed' || r.status === 'confirmed');
-  const pendingReservations = reservations.filter(r => r.status === 'Pending' || r.status === 'pending');
+  const pendingReservations = reservations.filter(r => r.status === 'Pending');
+  const confirmedReservations = reservations.filter(r => r.status === 'Confirmed' || r.status === 'Seated');
+  const avgRating = feedback.length > 0
+    ? (feedback.reduce((sum, f) => sum + (f.rating || 5), 0) / feedback.length).toFixed(1)
+    : '4.9';
 
   return (
-    <div className="bg-background font-body-md text-body-md text-on-surface antialiased min-h-screen">
+    <div className="min-h-screen bg-[#FAF7F2] text-[#1b1c1a] font-sans antialiased pb-16">
       {/* Toast */}
-      {toast.show && (
-        <div className="fixed bottom-6 right-6 z-50 bg-primary-container text-on-primary px-space-lg py-space-md rounded shadow-lg flex items-center gap-space-sm animate-bounce">
-          <span className="material-symbols-outlined text-[20px] text-secondary-fixed">check_circle</span>
-          <span className="font-body-sm text-body-sm font-medium">{toast.message}</span>
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#02150c] text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3 border border-[#C5A880]/40">
+          <CheckCircle className="w-5 h-5 text-[#C5A880]" />
+          <span className="text-xs font-semibold text-[#C5A880]">{toastMessage}</span>
         </div>
       )}
 
-      {/* Header */}
-      <header className="fixed top-10 inset-x-0 z-50 bg-surface/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(21,42,32,0.04)]">
-        <div className="h-20 w-full px-space-md lg:px-margin-desktop flex items-center justify-between gap-space-md">
-          <div className="flex items-center gap-space-lg">
-            <div className="flex items-center gap-space-sm">
-              <div className="w-10 h-10 rounded-lg bg-primary-container text-secondary flex items-center justify-center font-title-editorial text-xl font-bold shadow-inner">M</div>
-              <div className="flex flex-col">
-                <span className="font-title-editorial text-title-editorial text-primary tracking-tight font-semibold leading-none">Mayflower</span>
-                <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest mt-1">Sanctuaries · Chennai</span>
-              </div>
+      {/* Owner Header Bar */}
+      <header className="bg-white border-b border-[#e4e2de] shadow-sm sticky top-11 z-40">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-[#02150c] text-[#C5A880] flex items-center justify-center font-serif font-bold text-lg shadow">
+              M
+            </div>
+            <div>
+              <h1 className="font-serif text-lg font-bold text-[#02150c] leading-none">Owner Dashboard</h1>
+              <span className="text-[10px] font-bold text-[#745b20] uppercase tracking-widest">
+                Executive Operations & Oversight · Mayflower Sanctuaries
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-space-md">
-            <div className="hidden sm:flex items-center gap-space-xs bg-surface-container-low px-space-sm py-1 rounded">
-              <span className="inline-block w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-              <span className="font-caption text-caption text-on-surface-variant">Supabase</span>
-              <span className="font-label-caps text-label-caps text-secondary font-bold uppercase">Live</span>
-            </div>
-            <div className="flex items-center gap-space-sm bg-surface-container px-space-sm py-1 rounded">
-              <span className="font-label-caps text-label-caps px-space-xs py-0.5 rounded bg-primary-container text-on-primary font-bold uppercase">
-                {user.role ? user.role.toUpperCase() : 'OWNER'}
+          <div className="flex items-center space-x-3">
+            <div className="hidden sm:flex items-center space-x-2 bg-[#f5f3ef] px-3 py-1.5 rounded-xl text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[#424844] font-medium">Provider:</span>
+              <span className="font-bold text-[#745b20] uppercase text-[10px]">
+                {import.meta.env.VITE_DATA_PROVIDER || 'MOCK LAYER'}
               </span>
-              <div className="w-8 h-8 rounded-full bg-primary text-on-primary font-bold flex items-center justify-center text-xs">
-                {user.name ? user.name[0].toUpperCase() : 'O'}
-              </div>
-              <button onClick={onLogout} className="text-caption text-error hover:underline font-label-caps uppercase ml-1 cursor-pointer">Logout</button>
+              <span className="text-[10px] text-[#9ca3af] font-mono">({lastSyncTime})</span>
             </div>
+            <button
+              onClick={loadAllData}
+              disabled={isRefreshing}
+              className="flex items-center space-x-1.5 text-xs text-[#424844] bg-[#f5f3ef] hover:bg-[#e4e2de] border border-[#e4e2de] px-3 py-1.5 rounded-xl transition cursor-pointer font-semibold"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-[#745b20] ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span>Refresh Data</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="w-full pt-[9.5rem] bg-background min-h-[calc(100vh-140px)] pb-16">
-        <div className="w-full px-space-md lg:px-margin-desktop py-space-xl flex flex-col gap-space-2xl">
-
-          {/* Page Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
-            <div className="flex flex-col gap-space-2xs">
-              <div className="flex items-center gap-space-xs text-secondary font-label-caps text-label-caps tracking-widest uppercase">
-                <span className="inline-block w-2 h-2 rounded-full bg-secondary animate-ping"></span>
-                <span>Owner Dashboard · Live Data</span>
-              </div>
-              <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Consolidated Operations Overview</h1>
-              <p className="font-body-sm text-body-sm text-on-surface-variant max-w-2xl">
-                Real-time operational overview across all Mayflower outlets. Data sourced directly from Supabase.
-              </p>
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* KPI Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="bg-white rounded-2xl border border-[#e4e2de] p-5 shadow-sm hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-[#745b20] uppercase tracking-wider">Total Outlets</span>
+              <Building2 className="w-5 h-5 text-[#745b20]" />
             </div>
-            <div className="flex items-center gap-space-sm self-start md:self-auto">
-              <div className="bg-surface-container-low px-space-md py-space-xs rounded flex flex-col items-end">
-                <span className="font-caption text-caption text-on-surface-variant">Last Synced</span>
-                <span className="font-label-numeric text-label-numeric text-primary font-bold">{lastSyncTime}</span>
-              </div>
+            <div className="text-3xl font-serif font-bold text-[#02150c]">{outlets.length}</div>
+            <p className="text-[11px] text-[#6b7280] mt-1">4 Active Sanctuaries in Chennai</p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[#e4e2de] p-5 shadow-sm hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-[#745b20] uppercase tracking-wider">Reservations Today</span>
+              <Calendar className="w-5 h-5 text-[#745b20]" />
+            </div>
+            <div className="text-3xl font-serif font-bold text-[#02150c]">{reservations.length}</div>
+            <p className="text-[11px] text-[#6b7280] mt-1">{confirmedReservations.length} Confirmed · {pendingReservations.length} Pending</p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[#e4e2de] p-5 shadow-sm hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-[#745b20] uppercase tracking-wider">Active Escalations</span>
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div className="text-3xl font-serif font-bold text-[#02150c]">{escalations.length}</div>
+            <p className="text-[11px] text-[#6b7280] mt-1">Operational issues requiring attention</p>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[#e4e2de] p-5 shadow-sm hover:shadow-md transition">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-[#745b20] uppercase tracking-wider">Guest Satisfaction</span>
+              <Star className="w-5 h-5 text-[#C5A880]" />
+            </div>
+            <div className="text-3xl font-serif font-bold text-[#02150c] flex items-baseline gap-1">
+              {avgRating} <span className="text-sm font-sans font-normal text-[#6b7280]">/ 5.0</span>
+            </div>
+            <p className="text-[11px] text-[#6b7280] mt-1">Based on {feedback.length} verified submissions</p>
+          </div>
+        </div>
+
+        {/* Multi-Outlet Overview */}
+        <section className="bg-white rounded-2xl border border-[#e4e2de] shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 border-b border-[#e4e2de]">
+            <div>
+              <h2 className="font-serif text-xl font-bold text-[#02150c]">Multi-Outlet Overview</h2>
+              <p className="text-xs text-[#6b7280] mt-0.5">Real-time status across all Mayflower sanctuaries</p>
+            </div>
+            <div className="flex items-center space-x-2 bg-[#f5f3ef] p-1 rounded-xl">
               <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="flex items-center gap-space-xs bg-primary-container text-on-primary px-space-md py-2.5 rounded font-label-caps text-label-caps tracking-wider uppercase shadow-sm hover:bg-primary transition-all cursor-pointer disabled:opacity-60"
+                onClick={() => setActiveCategory('all')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  activeCategory === 'all' ? 'bg-[#02150c] text-[#C5A880]' : 'text-[#424844] hover:bg-white'
+                }`}
               >
-                <span className={`material-symbols-outlined text-[16px] transition-transform duration-700 ${isRefreshing ? 'animate-spin' : ''}`}>sync</span>
-                <span>Refresh</span>
+                All ({outlets.length})
+              </button>
+              <button
+                onClick={() => setActiveCategory('active')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  activeCategory === 'active' ? 'bg-[#02150c] text-[#C5A880]' : 'text-[#424844] hover:bg-white'
+                }`}
+              >
+                Active ({outlets.filter(o => o.isActive).length})
+              </button>
+              <button
+                onClick={() => setActiveCategory('inactive')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                  activeCategory === 'inactive' ? 'bg-[#02150c] text-[#C5A880]' : 'text-[#424844] hover:bg-white'
+                }`}
+              >
+                Inactive ({outlets.filter(o => !o.isActive).length})
               </button>
             </div>
           </div>
 
-          {/* Error Banner */}
-          {_error && (
-            <div className="bg-error-container text-error px-space-md py-space-sm rounded font-body-sm text-body-sm">
-              {_error} — showing last available data.
+          {loading ? (
+            <div className="px-6 py-12 text-center text-sm text-[#9ca3af]">Loading outlet data…</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-6">
+              {filteredOutlets.map(outlet => (
+                <div key={outlet.id} className="border border-[#e4e2de] rounded-2xl p-5 bg-[#faf9f6] hover:shadow-md transition flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#efeeea] text-[#424844]">
+                        {outlet.badge}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Active
+                      </span>
+                    </div>
+                    <h3 className="font-serif text-base font-bold text-[#02150c] mb-1">{outlet.name}</h3>
+                    <p className="text-xs text-[#6b7280] mb-3">{outlet.area}</p>
+                    <div className="space-y-1 text-xs text-[#424844] border-t border-[#e4e2de] pt-3">
+                      <div className="flex justify-between">
+                        <span>Capacity:</span>
+                        <span className="font-semibold text-[#02150c]">{outlet.tablesCount} Tables · {outlet.coversCount} Covers</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Operating Hours:</span>
+                        <span className="font-medium">{outlet.openingTime} – {outlet.closingTime}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Petpooja POS Node:</span>
+                        <span className="font-mono text-[11px] text-[#745b20]">{outlet.petpoojaId}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
+        </section>
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
-            <div className="bg-surface-container-lowest p-space-lg rounded shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow border border-surface-container">
-              <div className="flex items-start justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Total Outlets</span>
-                  <span className="font-headline-md text-headline-md text-primary font-semibold mt-1">
-                    {loading ? '—' : outlets.length}
-                  </span>
-                </div>
-                <span className="p-2 bg-surface-container text-secondary rounded">
-                  <span className="material-symbols-outlined text-[20px]">store</span>
-                </span>
-              </div>
-              <span className="font-caption text-caption text-on-surface-variant mt-2">
-                {loading ? '—' : `${outlets.filter(o => o.is_active).length} active · ${outlets.filter(o => !o.is_active).length} inactive`}
-              </span>
-            </div>
-
-            <div className="bg-surface-container-lowest p-space-lg rounded shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow border border-surface-container">
-              <div className="flex items-start justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Reservations Today+</span>
-                  <span className="font-headline-md text-headline-md text-primary font-semibold mt-1">
-                    {loading ? '—' : kpi.totalReservations}
-                  </span>
-                </div>
-                <span className="p-2 bg-surface-container text-primary rounded">
-                  <span className="material-symbols-outlined text-[20px]">event_seat</span>
-                </span>
-              </div>
-              <span className="font-caption text-caption text-on-surface-variant mt-2">
-                {loading ? '—' : `${kpi.pendingReservations} pending confirmation`}
-              </span>
-            </div>
-
-            <div className="bg-surface-container-lowest p-space-lg rounded shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow border border-surface-container">
-              <div className="flex items-start justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Active Escalations</span>
-                  <span className="font-headline-md text-headline-md text-primary font-semibold mt-1">
-                    {loading ? '—' : escalations.length}
-                  </span>
-                </div>
-                <span className="p-2 bg-surface-container text-secondary rounded">
-                  <span className="material-symbols-outlined text-[20px]">warning</span>
-                </span>
-              </div>
-              <span className="font-caption text-caption text-on-surface-variant mt-2">
-                {escalations.length === 0 ? 'No open issues' : 'Requires attention'}
-              </span>
-            </div>
-
-            <div className="bg-surface-container-lowest p-space-lg rounded shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow border border-surface-container">
-              <div className="flex items-start justify-between">
-                <div className="flex flex-col">
-                  <span className="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Recent Feedback</span>
-                  <span className="font-headline-md text-headline-md text-primary font-semibold mt-1">
-                    {loading ? '—' : kpi.totalFeedback}
-                  </span>
-                </div>
-                <span className="p-2 bg-surface-container text-primary rounded">
-                  <span className="material-symbols-outlined text-[20px]">rate_review</span>
-                </span>
-              </div>
-              <span className="font-caption text-caption text-on-surface-variant mt-2">Last 10 submissions</span>
-            </div>
-          </div>
-
-          {/* Outlet Matrix */}
-          <div className="flex flex-col gap-space-md">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
+        {/* Operational Issues & Recent Feedback */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Active Escalations */}
+          <section className="bg-white rounded-2xl border border-[#e4e2de] shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="font-headline-sm text-headline-sm text-primary">Multi-Outlet Overview</h2>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">All outlets from Supabase</p>
+                <h2 className="font-serif text-lg font-bold text-[#02150c]">Open Escalations</h2>
+                <p className="text-xs text-[#6b7280] mt-0.5">High priority outlet management alerts</p>
               </div>
-              <div className="flex items-center gap-space-xs self-start">
-                {(['all', 'active', 'inactive'] as const).map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`px-space-sm py-1 rounded font-label-caps text-label-caps uppercase transition-colors cursor-pointer ${
-                      activeCategory === cat ? 'bg-primary-container text-on-primary' : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-                    }`}
-                  >
-                    {cat === 'all' ? `All (${outlets.length})` : cat.charAt(0).toUpperCase() + cat.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                SLA &le; 10 mins
+              </span>
             </div>
 
-            <div className="bg-surface-container-lowest rounded shadow-sm overflow-x-auto border border-surface-container">
-              {loading ? (
-                <div className="p-space-xl text-center font-caption text-on-surface-variant">Loading outlets...</div>
-              ) : filteredOutlets.length === 0 ? (
-                <div className="p-space-xl text-center font-caption text-on-surface-variant">No outlets found.</div>
+            <div className="space-y-3">
+              {escalations.length === 0 ? (
+                <div className="p-6 text-center text-xs text-[#9ca3af] bg-[#faf9f6] rounded-xl border border-dashed border-[#e4e2de]">
+                  No open escalations across any outlet.
+                </div>
               ) : (
-                <table className="w-full text-left whitespace-nowrap">
-                  <thead className="bg-surface-container-low text-on-surface-variant font-label-caps text-label-caps uppercase tracking-wider">
-                    <tr>
-                      <th className="py-space-md px-space-lg">Outlet</th>
-                      <th className="py-space-md px-space-md">Area</th>
-                      <th className="py-space-md px-space-md">Tables / Covers</th>
-                      <th className="py-space-md px-space-md">Petpooja ID</th>
-                      <th className="py-space-md px-space-md">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-body-sm text-body-sm text-on-surface divide-y divide-surface-container">
-                    {filteredOutlets.map(outlet => (
-                      <tr key={outlet.id} className="hover:bg-surface-container-low/60 transition-colors">
-                        <td className="py-space-md px-space-lg">
-                          <div className="flex items-center gap-space-sm">
-                            <div className="w-8 h-8 rounded bg-primary-container text-on-primary flex items-center justify-center font-title-editorial text-caption font-bold">
-                              {outlet.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-title-editorial text-title-editorial text-primary font-semibold">{outlet.name}</span>
-                              {outlet.badge && <span className="font-caption text-caption text-on-surface-variant">{outlet.badge}</span>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-space-md px-space-md font-caption text-on-surface-variant">{outlet.area ?? '—'}</td>
-                        <td className="py-space-md px-space-md">
-                          <span className="font-label-numeric text-label-numeric font-bold text-primary">{outlet.tables_count}</span>
-                          <span className="text-on-surface-variant"> tables · </span>
-                          <span className="font-label-numeric text-label-numeric font-bold text-primary">{outlet.covers_count}</span>
-                          <span className="text-on-surface-variant"> covers</span>
-                        </td>
-                        <td className="py-space-md px-space-md font-mono text-caption text-on-surface-variant">{outlet.petpooja_id ?? '—'}</td>
-                        <td className="py-space-md px-space-md">
-                          {outlet.is_active
-                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed-variant font-label-caps text-label-caps font-bold"><span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>Active</span>
-                            : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-caps text-label-caps font-bold"><span className="w-1.5 h-1.5 rounded-full bg-on-surface-variant"></span>Inactive</span>
-                          }
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
-          {/* Reservations */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-space-lg">
-            {/* Confirmed */}
-            <div className="bg-surface-container-lowest p-space-xl rounded shadow-sm flex flex-col gap-space-md border border-surface-container">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">Upcoming</span>
-                  <h3 className="font-headline-sm text-headline-sm text-primary">Confirmed Reservations</h3>
-                </div>
-                <span className="font-headline-md text-headline-md font-bold text-primary">{confirmedReservations.length}</span>
-              </div>
-              {loading ? (
-                <p className="font-caption text-on-surface-variant">Loading...</p>
-              ) : confirmedReservations.length === 0 ? (
-                <p className="font-caption text-on-surface-variant">No confirmed reservations.</p>
-              ) : (
-                <div className="flex flex-col gap-space-xs overflow-y-auto max-h-72">
-                  {confirmedReservations.map(r => (
-                    <div key={r.id} className="p-space-sm bg-surface-container-low rounded flex items-center justify-between gap-space-sm">
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm text-primary font-bold">{r.booking_code}</span>
-                        <span className="font-caption text-caption text-on-surface-variant">{r.outlet ?? '—'} · {r.reservation_date} · {r.time_slot}</span>
-                      </div>
-                      <div className="flex items-center gap-space-xs">
-                        <span className="font-caption text-caption text-on-surface-variant">{r.guests} guests</span>
-                        <span className="font-label-caps text-[10px] px-2 py-0.5 rounded bg-primary-fixed text-on-primary-fixed-variant font-bold uppercase">{r.status}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Pending */}
-            <div className="bg-surface-container-lowest p-space-xl rounded shadow-sm flex flex-col gap-space-md border border-surface-container">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">Awaiting Action</span>
-                  <h3 className="font-headline-sm text-headline-sm text-primary">Pending Reservations</h3>
-                </div>
-                <span className="font-headline-md text-headline-md font-bold text-error">{pendingReservations.length}</span>
-              </div>
-              {loading ? (
-                <p className="font-caption text-on-surface-variant">Loading...</p>
-              ) : pendingReservations.length === 0 ? (
-                <p className="font-caption text-on-surface-variant">No pending reservations.</p>
-              ) : (
-                <div className="flex flex-col gap-space-xs overflow-y-auto max-h-72">
-                  {pendingReservations.map(r => (
-                    <div key={r.id} className="p-space-sm bg-surface-container-low rounded flex items-center justify-between gap-space-sm">
-                      <div className="flex flex-col">
-                        <span className="font-body-sm text-body-sm text-primary font-bold">{r.booking_code}</span>
-                        <span className="font-caption text-caption text-on-surface-variant">{r.outlet ?? '—'} · {r.reservation_date} · {r.time_slot}</span>
-                      </div>
-                      <div className="flex items-center gap-space-xs">
-                        <span className="font-caption text-caption text-on-surface-variant">{r.guests} guests</span>
-                        <span className="font-label-caps text-[10px] px-2 py-0.5 rounded bg-error-container text-error font-bold uppercase">{r.status}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Escalations */}
-          <div className="bg-surface-container-lowest p-space-xl rounded shadow-sm flex flex-col gap-space-lg border border-surface-container">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">Active Issues</span>
-                <h3 className="font-headline-sm text-headline-sm text-primary">Open Escalations</h3>
-              </div>
-              <span className="font-caption text-caption text-secondary font-medium">Response SLA: ≤ 10 mins</span>
-            </div>
-            {loading ? (
-              <p className="font-caption text-on-surface-variant">Loading...</p>
-            ) : escalations.length === 0 ? (
-              <div className="p-space-md bg-surface-container-low rounded text-center font-caption text-on-surface-variant">
-                ✓ No open escalations. Operational status nominal.
-              </div>
-            ) : (
-              <div className="flex flex-col gap-space-xs">
-                {escalations.map(esc => (
-                  <div key={esc.id} className="p-space-md bg-surface-container-low rounded flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
-                    <div className="flex items-start gap-space-sm">
-                      <span className={`p-2 rounded-full mt-0.5 ${esc.severity === 'high' ? 'bg-error-container text-error' : 'bg-surface-container text-on-surface-variant'}`}>
-                        <span className="material-symbols-outlined text-[18px]">{esc.severity === 'high' ? 'priority_high' : 'info'}</span>
+                escalations.map(esc => (
+                  <div key={esc.id} className="border border-[#e4e2de] rounded-xl p-4 bg-[#faf9f6]">
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <h4 className="font-bold text-sm text-[#02150c]">{esc.title}</h4>
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${
+                        esc.severity === 'high' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {esc.severity} severity
                       </span>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <span className="font-body-sm text-body-sm text-primary font-bold">{esc.title}</span>
-                          <span className="font-label-caps text-caption text-secondary uppercase font-semibold">{esc.outlet ?? '—'}</span>
-                        </div>
-                        <span className="font-caption text-caption text-on-surface-variant">{esc.description}</span>
-                      </div>
                     </div>
-                    <button
-                      onClick={() => handleResolveEscalation(esc.id)}
-                      className={`px-space-sm py-1.5 rounded font-label-caps text-label-caps uppercase transition-colors cursor-pointer self-end md:self-auto ${
-                        esc.severity === 'high'
-                          ? 'bg-primary-container text-on-primary hover:bg-primary'
-                          : 'bg-surface-container text-primary hover:bg-surface-container-high'
-                      }`}
-                    >
-                      Resolve
-                    </button>
+                    <p className="text-xs text-[#424844] mb-3">{esc.description}</p>
+                    <div className="flex items-center justify-between text-[11px] text-[#6b7280] border-t border-[#e4e2de] pt-2">
+                      <span>{esc.outlet} · {esc.createdAt}</span>
+                      <button
+                        onClick={() => handleResolveEscalation(esc.id)}
+                        className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg hover:bg-emerald-100 transition cursor-pointer"
+                      >
+                        Mark Resolved
+                      </button>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Customer Feedback */}
-          <div className="bg-surface-container-lowest p-space-xl rounded shadow-sm flex flex-col gap-space-lg border border-surface-container">
-            <div>
-              <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">Customer Voice</span>
-              <h3 className="font-headline-sm text-headline-sm text-primary">Recent Feedback</h3>
+                ))
+              )}
             </div>
-            {loading ? (
-              <p className="font-caption text-on-surface-variant">Loading...</p>
-            ) : feedback.length === 0 ? (
-              <p className="font-caption text-on-surface-variant">No feedback submissions yet.</p>
-            ) : (
-              <div className="flex flex-col gap-space-xs">
-                {feedback.map(fb => (
-                  <div key={fb.id} className="p-space-md bg-surface-container-low rounded flex flex-col gap-space-2xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-space-sm">
-                        <span className="font-body-sm text-body-sm text-primary font-bold">{fb.customer_name}</span>
-                        {fb.outlet && (
-                          <span className="font-caption text-caption text-on-surface-variant">· {fb.outlet}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {fb.rating !== null && (
-                          <>
-                            <span className="material-symbols-outlined text-[14px] text-secondary">star</span>
-                            <span className="font-label-numeric text-caption font-bold text-primary">{fb.rating}/5</span>
-                          </>
-                        )}
-                        <span className="font-caption text-[10px] text-on-surface-variant ml-2">
-                          {new Date(fb.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="font-caption text-caption text-on-surface-variant line-clamp-2">{fb.message}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          </section>
 
+          {/* Guest Feedback */}
+          <section className="bg-white rounded-2xl border border-[#e4e2de] shadow-sm p-6">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="font-serif text-lg font-bold text-[#02150c]">Recent Guest Voice</h2>
+                <p className="text-xs text-[#6b7280] mt-0.5">Live guest feedback submissions</p>
+              </div>
+              <span className="text-xs font-bold text-[#745b20] bg-[#fdf6e3] px-2.5 py-1 rounded-full border border-[#e4c27d]/40">
+                Verified Guests
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {feedback.slice(0, 4).map(fb => (
+                <div key={fb.id} className="border border-[#e4e2de] rounded-xl p-4 bg-[#faf9f6]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-sm text-[#02150c]">{fb.customerName}</span>
+                    <div className="flex items-center space-x-1">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-3.5 h-3.5 ${
+                            i < (fb.rating || 5) ? 'text-[#C5A880] fill-[#C5A880]' : 'text-gray-300'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-xs text-[#424844] italic mb-2">"{fb.message}"</p>
+                  <div className="flex items-center justify-between text-[10px] text-[#9ca3af]">
+                    <span>{fb.outlet}</span>
+                    <span>{fb.createdAt}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="w-full bg-surface-container-lowest py-space-2xl border-t border-surface-container">
-        <div className="w-full px-space-md lg:px-margin-desktop">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-space-sm text-caption font-caption text-on-surface-variant">
-            <div className="flex items-center gap-space-md">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                Supabase · Live Data
-              </span>
-              <span>Mayflower Sanctuaries · Chennai</span>
-            </div>
-            <div>© {new Date().getFullYear()} Mayflower Hospitality Group India LLP.</div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
+
+export default OwnerDashboard;

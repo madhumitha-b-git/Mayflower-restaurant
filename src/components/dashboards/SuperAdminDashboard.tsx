@@ -5,11 +5,13 @@ import {
   Search, Filter, ChevronDown, RefreshCw, Eye, EyeOff,
   Star, Calendar, CreditCard, ShoppingBag
 } from 'lucide-react';
-import { UserProfile } from '../../types';
+import { UserProfile, UserRole } from '../../types';
 import {
   fetchAllStaff, fetchAllCustomers, createStaffMember, fetchOutlets,
   toggleStaffActive, StaffMember, CustomerRecord, CreateStaffPayload
 } from '../../lib/adminService';
+import { getDataProvider } from '../../data/DataProvider';
+import { useAuditLogs } from '../../hooks/useAppData';
 
 interface Props {
   user: UserProfile;
@@ -55,6 +57,8 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 export const SuperAdminDashboard: React.FC<Props> = ({ user: _user, onLogout }) => {
+  const user = _user;
+  const { data: auditLogsList } = useAuditLogs(user);
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showProvisionModal, setShowProvisionModal] = useState(false);
@@ -435,7 +439,24 @@ export const SuperAdminDashboard: React.FC<Props> = ({ user: _user, onLogout }) 
                         <td className="px-5 py-3.5 text-[#6b7280] text-xs">{s.email}</td>
                         <td className="px-5 py-3.5 text-[#6b7280] text-xs">{s.mobile || '—'}</td>
                         <td className="px-5 py-3.5">
-                          <span className="bg-[#efeeea] text-[#424844] text-[10px] font-bold uppercase px-2 py-0.5 rounded-md">{s.role}</span>
+                          <select
+                            value={s.role}
+                            onChange={async (e) => {
+                              const newRole = e.target.value as UserRole;
+                              try {
+                                await getDataProvider().assignRole(user, s.id, newRole);
+                                showToast(`Assigned role ${newRole} to ${s.name}`);
+                                loadStaff();
+                              } catch (err: any) {
+                                showToast(`Error: ${err.message}`);
+                              }
+                            }}
+                            className="bg-[#efeeea] text-[#424844] text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border border-[#d1cfc9] focus:outline-none cursor-pointer"
+                          >
+                            {['Super Admin', 'Owner', 'Admin', 'Manager', 'Chef', 'HR', 'Accountant', 'Customer'].map(r => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
                         </td>
                         <td className="px-5 py-3.5 text-xs text-[#424844]">{s.department || '—'}</td>
                         <td className="px-5 py-3.5 text-xs text-[#424844]">{s.outlet_name || s.outlet || '—'}</td>
@@ -713,20 +734,19 @@ export const SuperAdminDashboard: React.FC<Props> = ({ user: _user, onLogout }) 
             <h2 className="font-serif text-lg font-bold text-[#02150c] mb-1">Activity & Audit Log</h2>
             <p className="text-xs text-[#6b7280] mb-5">Recent system and user activity</p>
             <div className="space-y-3">
-              {[
-                { time: '09:14', user: 'Super Admin', action: 'Updated RBAC permissions for Manager role', outlet: 'System-wide' },
-                { time: '08:52', user: 'Raghavan Iyer', action: 'Approved reservation #R-2041', outlet: 'Poes Garden' },
-                { time: '08:30', user: 'Super Admin', action: 'Added new outlet: Velachery Lakeside', outlet: 'System-wide' },
-                { time: '07:55', user: 'Kavitha Nair', action: 'Submitted leave request', outlet: 'Velachery Lakeside' },
-                { time: '07:20', user: 'System', action: 'Petpooja sync completed — 142 menu items updated', outlet: 'All Outlets' },
-              ].map((entry, i) => (
-                <div key={i} className="flex items-start space-x-4 py-3 border-b border-[#f0ede8] last:border-0">
-                  <span className="text-[10px] font-bold text-[#9ca3af] w-10 shrink-0 mt-0.5">{entry.time}</span>
+              {auditLogsList.length === 0 ? (
+                <p className="text-xs text-[#9ca3af]">No audit logs recorded yet.</p>
+              ) : auditLogsList.map((log) => (
+                <div key={log.id} className="flex items-start space-x-4 py-3 border-b border-[#f0ede8] last:border-0">
+                  <span className="text-[10px] font-bold text-[#9ca3af] shrink-0 mt-0.5">{log.createdAt}</span>
                   <div className="flex-1 min-w-0">
-                    <span className="font-semibold text-xs text-[#02150c]">{entry.user}</span>
-                    <span className="text-xs text-[#6b7280]"> — {entry.action}</span>
+                    <span className="font-semibold text-xs text-[#02150c]">{log.actorName}</span>
+                    <span className="text-[10px] font-bold text-[#745b20] uppercase ml-1.5 bg-[#efeeea] px-1.5 py-0.5 rounded">({log.actorRole})</span>
+                    <span className="text-xs text-[#6b7280]"> — {log.action} on {log.entityType} ({log.entityId})</span>
+                    {log.metadata && (
+                      <div className="text-[10px] font-mono text-[#9ca3af] mt-0.5">{JSON.stringify(log.metadata)}</div>
+                    )}
                   </div>
-                  <span className="text-[10px] text-[#9ca3af] shrink-0">{entry.outlet}</span>
                 </div>
               ))}
             </div>

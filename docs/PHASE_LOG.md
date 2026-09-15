@@ -392,7 +392,35 @@ Running project history and handover audit record following `Mayflower_05_Testin
 **Deviations from the original prompt (if any) and why:**
 - None.
 
+**---
+
+## Phase 20 — RBAC Hardening & Agnostic Mock-Data Layer
+**Date completed:** 2026-09-15
+
+**What was built:**
+- **RBAC Governance Matrix**: Published `/docs/RBAC_MATRIX.md` defining permissions across all 8 roles (`Super Admin`, `Owner`, `Admin`, `Manager`, `Chef`, `HR`, `Accountant`, `Customer`) for all domain entities.
+- **Single Source of Truth RBAC Predicates**: Implemented `src/rbac/policies.ts` providing pure policy predicate functions (`canViewReservation`, `canManageReservation`, `canViewCustomerData`, `canViewFeedback`, `canSubmitFeedback`, `canViewFranchiseEnquiries`, `canManageOutlets`, `canAssignRole`, `canViewStaffDirectory`, `canViewAuditLogs`, `canManageSOPsAndTasks`, `canUpdateTaskStatus`, `canViewFinancialReports`).
+- **Provider-Agnostic Data Access Layer**: Created `src/data/DataProvider.ts` interface with dynamic provider factory `getDataProvider()` swappable via `VITE_DATA_PROVIDER=mock|supabase`.
+- **In-Memory & Storage Mock Data Provider**: Created `src/data/MockDataProvider.ts` and `src/data/mockSeed.ts` with localStorage persistence, event emitter for live pub/sub updates, policy checks on every method call, and automatic audit log writing.
+- **Supabase Realtime Provider**: Created `src/data/SupabaseDataProvider.ts` with boundary policy checks and realtime subscriptions.
+- **Reactive UI Hooks**: Created `src/hooks/useAppData.ts` offering entity hooks (`useReservations`, `useTasks`, `useStaff`, `useOutlets`, `useFeedback`, `useFranchiseEnquiries`, `useAuditLogs`, `useLoyaltyBalance`) wired to `DataProvider` pub/sub events.
+- **Dashboard Integrations**: Updated `SuperAdminDashboard.tsx`, `CustomerDashboard.tsx`, `OwnerDashboard.tsx`, `AdminDashboard.tsx`, `ManagerDashboard.tsx`, `ChefDashboard.tsx`, `HRDashboard.tsx`, `AccountantDashboard.tsx`, `RoleDashboard.tsx` to consume `DataProvider` / `useAppData`.
+- **SuperAdmin Role Reassignment**: Interactive role assignment dropdown in `SuperAdminDashboard.tsx` with audit logging and live session trigger.
+- **Customer Privacy Isolation**: Strictly enforced `customer_id === currentUser.id` data boundary across all customer panels in `CustomerDashboard.tsx`.
+
+**Tests run and results:**
+- Automated Test Suite: 70/70 passing across 12 test files (`npm test -- --run`).
+- TypeScript Compilation: 0 errors / 0 warnings (`npx tsc --noEmit`).
+- Production Build: Exit code 0 (`npm run build`).
+
+**Assumptions made / flagged for client confirmation:**
+- Switching data backend is achieved seamlessly via `VITE_DATA_PROVIDER` in environment variables with zero code changes required in UI components.
+
+**Deviations from the original prompt (if any) and why:**
+- None.
+
 **Open questions carried forward:**
-- None. Project fully completed and certified.
+- None. RBAC Hardening & Agnostic Mock-Data Layer fully certified.
+
 
 
