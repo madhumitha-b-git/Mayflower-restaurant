@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
-import { SuperAdminDashboard } from './SuperAdminDashboard';
+import { SuperAdminDashboardV2 } from './SuperAdminDashboardV2';
 import { OwnerDashboard } from './OwnerDashboard';
 import { AdminDashboard } from './AdminDashboard';
 import { ManagerDashboard } from './ManagerDashboard';
@@ -43,7 +43,7 @@ export const RoleDashboard: React.FC<Props> = ({ user, onLogout, onBackToWebsite
 
   const renderDashboard = () => {
     switch (activeRole) {
-      case 'SuperAdmin':  return <SuperAdminDashboard  user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;
+      case 'SuperAdmin':  return <SuperAdminDashboardV2 user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;
       case 'Owner':       return <OwnerDashboard       user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;
       case 'Admin':       return <AdminDashboard       user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;
       case 'Manager':     return <ManagerDashboard     user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;

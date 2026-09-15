@@ -1,0 +1,8 @@
+{
+  "name": "Mayflower new Super Admin Dashboard",
+  "description": "Centralized executive operational oversight, personnel governance, and real-time ledger orchestration for Mayflower private sanctuaries.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
