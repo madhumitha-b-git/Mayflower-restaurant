@@ -5,9 +5,10 @@ import { OUTLETS } from '../data/restaurantData';
 interface FooterProps {
   onNavigate: (sectionId: string) => void;
   onPlanVisit: () => void;
+  canReserveTable?: boolean;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit }) => {
+export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit, canReserveTable = true }) => {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -27,14 +28,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit }) => {
             </h3>
           </div>
 
-          <button
-            onClick={onPlanVisit}
-            id="footer-btn-plan-visit"
-            className="px-8 py-4 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-all duration-300 shadow-lg flex items-center space-x-3 shrink-0 cursor-pointer"
-          >
-            <Calendar className="w-4 h-4" />
-            <span>Plan Your Visit</span>
-          </button>
+          {canReserveTable && (
+            <button
+              onClick={onPlanVisit}
+              id="footer-btn-plan-visit"
+              className="px-8 py-4 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-all duration-300 shadow-lg flex items-center space-x-3 shrink-0 cursor-pointer"
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Plan Your Visit</span>
+            </button>
+          )}
         </div>
 
         {/* Links & Information Columns */}

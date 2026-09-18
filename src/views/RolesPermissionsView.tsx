@@ -1,21 +1,59 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Lock,
   Check,
   Download,
   CheckCircle2,
 } from 'lucide-react';
-import { RoleMatrixRow, TabType } from '../types';
+import { RoleMatrixRow, TabType, UserProfile } from '../types';
 import { INITIAL_ROLE_MATRIX } from '../data/mockData';
+import { fetchAllStaff } from '../lib/adminService';
 
 interface RolesPermissionsViewProps {
   onNavigate: (tab: TabType) => void;
+  user?: UserProfile;
 }
 
-export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({ onNavigate }) => {
+export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({ onNavigate, user }) => {
   const [matrix, setMatrix] = useState<RoleMatrixRow[]>(INITIAL_ROLE_MATRIX);
   const [selectedRoleIndex, setSelectedRoleIndex] = useState<number>(3); // Default Manager
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadRoleMatrix = async () => {
+      try {
+        const staff = await fetchAllStaff();
+        if (!isActive) return;
+
+        const counts = staff.reduce<Record<string, number>>((acc, member: any) => {
+          const role = String(member.role || 'Admin');
+          acc[role] = (acc[role] || 0) + 1;
+          return acc;
+        }, {});
+
+        const nextMatrix: RoleMatrixRow[] = [
+          { id: 'super-admin', roleName: 'Super Admin', subtitle: 'Platform governance', personnelCount: counts.SuperAdmin || 1, isImmutable: true, rootConfig: 'locked', financials: true, staffMgmt: true, liveOps: true, guestPii: true, overrides: true, inspect: true, authorizations: [], securityPolicies: { mfa: 'Required', sessionTimeout: '15 min', ipPerimeter: 'Restricted', piiRedaction: 'Masked' }, clusterCoverage: ['All clusters'] },
+          { id: 'owner', roleName: 'Owner', subtitle: 'Portfolio oversight', personnelCount: counts.Owner || 0, rootConfig: false, financials: true, staffMgmt: true, liveOps: true, guestPii: true, overrides: true, inspect: true, authorizations: [], securityPolicies: { mfa: 'Required', sessionTimeout: '20 min', ipPerimeter: 'Restricted', piiRedaction: 'Masked' }, clusterCoverage: ['Portfolio'] },
+          { id: 'admin', roleName: 'Admin', subtitle: 'Operations control', personnelCount: counts.Admin || 0, rootConfig: false, financials: true, staffMgmt: true, liveOps: true, guestPii: false, overrides: true, inspect: true, authorizations: [], securityPolicies: { mfa: 'Required', sessionTimeout: '30 min', ipPerimeter: 'Managed', piiRedaction: 'Masked' }, clusterCoverage: ['Operations'] },
+          { id: 'manager', roleName: 'Manager', subtitle: 'Daily service supervision', personnelCount: counts.Manager || 0, rootConfig: false, financials: false, staffMgmt: true, liveOps: true, guestPii: false, overrides: false, inspect: true, authorizations: [], securityPolicies: { mfa: 'Required', sessionTimeout: '45 min', ipPerimeter: 'Per outlet', piiRedaction: 'Masked' }, clusterCoverage: ['Outlet'] },
+          { id: 'chef', roleName: 'Chef', subtitle: 'Kitchen & menu operations', personnelCount: counts.Chef || 0, rootConfig: false, financials: false, staffMgmt: false, liveOps: true, guestPii: false, overrides: false, inspect: true, authorizations: [], securityPolicies: { mfa: 'Required', sessionTimeout: '45 min', ipPerimeter: 'Kitchen only', piiRedaction: 'Allowed' }, clusterCoverage: ['Kitchen'] },
+          { id: 'hr', roleName: 'HR', subtitle: 'People & compliance', personnelCount: counts.HR || 0, rootConfig: false, financials: false, staffMgmt: true, liveOps: false, guestPii: true, overrides: false, inspect: true, authorizations: [], securityPolicies: { mfa: 'Required', sessionTimeout: '40 min', ipPerimeter: 'HQ', piiRedaction: 'Masked' }, clusterCoverage: ['People ops'] },
+          { id: 'accountant', roleName: 'Accountant', subtitle: 'Finance & ledger review', personnelCount: counts.Accountant || 0, rootConfig: false, financials: true, staffMgmt: false, liveOps: false, guestPii: false, overrides: false, inspect: true, authorizations: [], securityPolicies: { mfa: 'Required', sessionTimeout: '35 min', ipPerimeter: 'Finance only', piiRedaction: 'Masked' }, clusterCoverage: ['Finance'] },
+        ];
+
+        setMatrix(nextMatrix);
+      } catch {
+        if (isActive) setMatrix(INITIAL_ROLE_MATRIX);
+      }
+    };
+
+    loadRoleMatrix();
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
 
   const activeRole = matrix[selectedRoleIndex] || matrix[0];
 

@@ -11,6 +11,7 @@ import { UserProfile, UserReservationRecord } from '../types';
 import { addReservationForCurrentUser } from '../lib/authService';
 import { getStoredTables, reserveTableForCustomer } from '../data/tableStorage';
 import { sendReservationConfirmationEmail } from '../data/emailService';
+import { MayflowerLogo } from './MayflowerLogo';
 
 interface PlanYourVisitProps {
   initialOutlet?: string;
@@ -295,13 +296,7 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div className="w-11 h-11 rounded-2xl bg-white p-1.5 border border-[#E8E4DB] shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
-              <img
-                src="/mayflower-logo.png"
-                alt="The Mayflower"
-                className="w-full h-full object-contain mix-blend-multiply"
-              />
-            </div>
+            <MayflowerLogo className="w-11 h-11" />
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-[10px] uppercase tracking-[0.3em] text-[#5A5A40] font-bold">
@@ -1367,13 +1362,7 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
             <div className="bg-[#F5F1EB] rounded-[24px] p-6 border border-[#E8E4DB] text-left space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-[#E8E4DB]">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-xl bg-white p-1 border border-[#E8E4DB] shrink-0 overflow-hidden">
-                    <img
-                      src="/mayflower-logo.png"
-                      alt="The Mayflower"
-                      className="w-full h-full object-contain mix-blend-multiply"
-                    />
-                  </div>
+                  <MayflowerLogo className="w-10 h-10 !rounded-xl" />
                   <div>
                     <span className="text-[10px] uppercase tracking-wider text-[#5A5A40] font-bold">Booking Reference</span>
                     <p className="font-mono text-xl font-bold text-[#1A1A1A]">{reservation.bookingCode}</p>

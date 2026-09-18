@@ -4,9 +4,10 @@ import { MapPin, Clock, Phone, Navigation, Calendar, CheckCircle2, Compass, Exte
 
 interface OutletsSectionProps {
   onReserveOutlet: (outletName: string) => void;
+  canReserveTable?: boolean;
 }
 
-export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet }) => {
+export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet, canReserveTable = true }) => {
   const [selectedOutletId, setSelectedOutletId] = useState<string>(OUTLETS[0].id);
 
   const activeOutlet = OUTLETS.find((o) => o.id === selectedOutletId) || OUTLETS[0];
@@ -231,14 +232,16 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet 
 
               {/* Actions: Reserve table here & Directions */}
               <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
-                <button
-                  onClick={() => onReserveOutlet(activeOutlet.name)}
-                  id={`btn-reserve-outlet-${activeOutlet.id}`}
-                  className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-all duration-300 shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
-                >
-                  <Calendar className="w-4 h-4 text-[#E8E4DB]" />
-                  <span>Reserve Table at {activeOutlet.name}</span>
-                </button>
+                {canReserveTable && (
+                  <button
+                    onClick={() => onReserveOutlet(activeOutlet.name)}
+                    id={`btn-reserve-outlet-${activeOutlet.id}`}
+                    className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-all duration-300 shadow-sm flex items-center justify-center space-x-2 cursor-pointer"
+                  >
+                    <Calendar className="w-4 h-4 text-[#E8E4DB]" />
+                    <span>Reserve Table at {activeOutlet.name}</span>
+                  </button>
+                )}
 
                 <a
                   href={activeOutlet.gmapUrl || `https://maps.google.com/?q=Mayflower+${encodeURIComponent(activeOutlet.name)}+Chennai`}

@@ -1,4 +1,5 @@
 import { UserProfile, UserRole } from '../types';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 import {
   SeedReservation, SeedTask, SeedFeedback,
   SeedFranchiseEnquiry, SeedAuditLog, SeedOutlet
@@ -52,7 +53,7 @@ let providerInstance: DataProvider | null = null;
 export const getDataProvider = (): DataProvider => {
   if (providerInstance) return providerInstance;
 
-  const mode = (import.meta.env.VITE_DATA_PROVIDER || 'mock').toLowerCase();
+  const mode = (import.meta.env.VITE_DATA_PROVIDER || (isSupabaseConfigured ? 'supabase' : 'mock')).toLowerCase();
 
   if (mode === 'supabase') {
     providerInstance = new SupabaseDataProvider();

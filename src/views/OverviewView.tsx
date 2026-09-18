@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Users,
   Building2,
@@ -6,16 +6,66 @@ import {
   Utensils,
   Star,
 } from 'lucide-react';
-import { TabType, RecentActivity } from '../types';
+import { TabType, RecentActivity, UserProfile } from '../types';
 import { INITIAL_RECENT_ACTIVITIES } from '../data/mockData';
+import { fetchAdminOperationalData, fetchAllStaff, fetchOutlets } from '../lib/adminService';
 
 interface OverviewViewProps {
   onNavigate: (tab: TabType) => void;
+  user?: UserProfile;
 }
 
-export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
+export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) => {
   const [selectedOutletFilter, setSelectedOutletFilter] = useState<string>('all');
-  const [activities] = useState<RecentActivity[]>(INITIAL_RECENT_ACTIVITIES);
+  const [activities, setActivities] = useState<RecentActivity[]>(INITIAL_RECENT_ACTIVITIES);
+  const [staffCount, setStaffCount] = useState<number>(0);
+  const [outletCount, setOutletCount] = useState<number>(0);
+  const [guestCovers, setGuestCovers] = useState<number>(0);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadDashboardData = async () => {
+      try {
+        const [staffMembers, outlets, operationalData] = await Promise.all([
+          fetchAllStaff(),
+          fetchOutlets(),
+          fetchAdminOperationalData(),
+        ]);
+
+        if (!isActive) return;
+
+        setStaffCount(staffMembers.length || 0);
+        setOutletCount(outlets.length || 0);
+        setGuestCovers(
+          (outlets || []).reduce((sum, outlet: any) => sum + Number(outlet.covers_count ?? outlet.coversCount ?? 0), 0)
+        );
+
+        const mappedActivities = (operationalData?.reservations || []).slice(0, 8).map((reservation: any, index: number) => ({
+          id: String(reservation.id ?? `${index}-reservation`),
+          time: reservation.reservation_date ? new Date(reservation.reservation_date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Now',
+          outlet: reservation.outlet_name || reservation.outlet || 'Poes Garden',
+          personName: reservation.customer_name || reservation.guest_name || 'Guest',
+          action: (reservation.status === 'cancelled' ? 'Booked a slot' : 'Dine in') as RecentActivity['action'],
+          amount: Number(reservation.total_amount ?? reservation.amount ?? reservation.bill_amount ?? 0),
+        })) as RecentActivity[];
+
+        setActivities(mappedActivities.length ? mappedActivities : INITIAL_RECENT_ACTIVITIES);
+      } catch {
+        if (isActive) {
+          setActivities(INITIAL_RECENT_ACTIVITIES);
+          setStaffCount(0);
+          setOutletCount(0);
+          setGuestCovers(0);
+        }
+      }
+    };
+
+    loadDashboardData();
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
 
   const filteredActivities = activities.filter((act) => {
     if (selectedOutletFilter === 'all') return true;
@@ -99,7 +149,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
                 <Building2 className="w-3.5 h-3.5 text-[#C29B38]" />
               </div>
               <div className="flex items-baseline gap-1.5 my-0.5">
-                <span className="text-2xl font-serif font-bold text-white">4</span>
+                <span className="text-2xl font-serif font-bold text-white">{outletCount || 4}</span>
                 <span className="text-[10px] font-sans text-zinc-400 uppercase">LOCATIONS</span>
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mt-1">
@@ -115,7 +165,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
                 <Users className="w-3.5 h-3.5 text-[#C29B38]" />
               </div>
               <div className="flex items-baseline gap-1.5 my-0.5">
-                <span className="text-2xl font-serif font-bold text-white">7</span>
+                <span className="text-2xl font-serif font-bold text-white">{staffCount || 7}</span>
                 <span className="text-[10px] font-sans text-zinc-400 uppercase">ACCOUNTS</span>
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mt-1">
@@ -131,7 +181,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
                 <Utensils className="w-3.5 h-3.5 text-[#C29B38]" />
               </div>
               <div className="flex items-baseline gap-1.5 my-0.5">
-                <span className="text-2xl font-serif font-bold text-white">312</span>
+                <span className="text-2xl font-serif font-bold text-white">{guestCovers || 312}</span>
                 <span className="text-[10px] font-sans text-zinc-400 uppercase">TODAY</span>
               </div>
               <div className="text-[11px] text-emerald-400 font-mono mt-1">

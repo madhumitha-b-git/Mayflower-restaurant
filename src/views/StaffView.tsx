@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Search,
   RotateCw,
@@ -9,10 +9,15 @@ import {
   X,
   Shield,
 } from 'lucide-react';
-import { StaffMember } from '../types';
+import { StaffMember, UserProfile } from '../types';
 import { INITIAL_STAFF } from '../data/mockData';
+import { fetchAllStaff } from '../lib/adminService';
 
-export const StaffView: React.FC = () => {
+interface StaffViewProps {
+  user?: UserProfile;
+}
+
+export const StaffView: React.FC<StaffViewProps> = ({ user }) => {
   const [staffList, setStaffList] = useState<StaffMember[]>(INITIAL_STAFF);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
@@ -21,6 +26,42 @@ export const StaffView: React.FC = () => {
   const [lastSyncText, setLastSyncText] = useState('18 SECONDS AGO');
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
   const [isAuditArchiveOpen, setIsAuditArchiveOpen] = useState(false);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadStaff = async () => {
+      try {
+        const staff = await fetchAllStaff();
+        if (!isActive) return;
+
+        const mapped = staff.length
+          ? staff.map((member: any) => ({
+              id: member.id,
+              name: member.name || 'Staff Member',
+              title: member.role || 'Sanctuary Personnel',
+              email: member.email,
+              mobile: member.mobile || '+91 00000 00000',
+              role: (member.role || 'ADMIN').toUpperCase().replace('SUPERADMIN', 'SUPER ADMIN') as StaffMember['role'],
+              department: member.department || member.role || 'Operations',
+              outlet: member.outlet_name || member.outlet || 'All Outlets',
+              empCode: member.employee_code || `EMP-${String(member.id).slice(0, 3).toUpperCase()}`,
+              status: (member.is_active ? 'ACTIVE' : 'RESTRICTED') as StaffMember['status'],
+              initials: (member.name || 'SM').split(' ').map((part: string) => part[0]).slice(0, 2).join('').toUpperCase() || 'SM',
+            })) as StaffMember[]
+          : INITIAL_STAFF;
+
+        setStaffList(mapped);
+      } catch {
+        if (isActive) setStaffList(INITIAL_STAFF);
+      }
+    };
+
+    loadStaff();
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
 
   // New staff form state
   const [formData, setFormData] = useState({

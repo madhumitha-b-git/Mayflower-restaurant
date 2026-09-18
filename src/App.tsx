@@ -81,6 +81,15 @@ export default function App() {
     };
   }, []);
 
+  const isStaff = Boolean(currentUser && currentUser.role && currentUser.role !== 'Customer');
+  const canReserveTable = !isStaff;
+
+  useEffect(() => {
+    if (isStaff && activeView === 'reservations') {
+      setActiveView('website');
+    }
+  }, [isStaff, activeView]);
+
   const scrollToSection = (sectionId: string) => {
     setActiveView('website');
     setTimeout(() => {
@@ -91,6 +100,7 @@ export default function App() {
   };
 
   const handleOpenReservations = (outletName?: string) => {
+    if (isStaff) return;
     if (outletName) setTargetOutlet(outletName);
     setActiveView('reservations');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -136,6 +146,7 @@ export default function App() {
         onLogout={handleLogout}
         onBackToWebsite={handleBackToWebsite}
         onOpenReservations={() => handleOpenReservations()}
+        onUpdateUser={handleUpdateUser}
       />
     );
   }
@@ -145,6 +156,7 @@ export default function App() {
       <Header
         activeView={activeView}
         currentUser={currentUser}
+        canReserveTable={canReserveTable}
         onNavigate={scrollToSection}
         onOpenReservations={() => handleOpenReservations()}
         onBackToWebsite={handleBackToWebsite}
@@ -159,12 +171,14 @@ export default function App() {
         {activeView === 'website' ? (
           <>
             <HeroCarousel
+              canReserveTable={canReserveTable}
               onPlanVisit={() => handleOpenReservations()}
               onExploreMenu={() => scrollToSection('menu')}
             />
             <AboutSection />
             <MayflowerGallery />
             <MenuSection
+              canReserveTable={canReserveTable}
               onPlanVisit={() => handleOpenReservations()}
               onRequestCellar={() => setActiveModal('cellar')}
             />
@@ -174,6 +188,7 @@ export default function App() {
               onUpdateUser={handleUpdateUser}
             />
             <OutletsSection
+              canReserveTable={canReserveTable}
               onReserveOutlet={(outletName) => handleOpenReservations(outletName)}
             />
             <ContactSection
@@ -192,6 +207,7 @@ export default function App() {
       </main>
 
       <Footer
+        canReserveTable={canReserveTable}
         onNavigate={scrollToSection}
         onPlanVisit={() => handleOpenReservations()}
       />
@@ -218,6 +234,7 @@ export default function App() {
 
       <MobileBottomNav
         activeView={activeView}
+        canReserveTable={canReserveTable}
         onNavigate={scrollToSection}
         onOpenReservations={() => handleOpenReservations()}
         onBackToWebsite={handleBackToWebsite}

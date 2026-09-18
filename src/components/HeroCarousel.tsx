@@ -5,11 +5,12 @@ import { ChevronLeft, ChevronRight, Sparkles, Calendar, Play, Pause } from 'luci
 interface HeroCarouselProps {
   onPlanVisit: () => void;
   onExploreMenu: () => void;
+  canReserveTable?: boolean;
 }
 
 const SLIDE_DURATION = 3800; // 3.8s for lively autonomous motion picture effect
 
-export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onPlanVisit, onExploreMenu }) => {
+export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onPlanVisit, onExploreMenu, canReserveTable = true }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isManuallyPaused, setIsManuallyPaused] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -114,14 +115,16 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onPlanVisit, onExplo
             <span>SEE OUR MENU</span>
           </button>
 
-          <button
-            onClick={onPlanVisit}
-            id="hero-reserve-table-btn"
-            className="px-8 sm:px-9 py-3.5 sm:py-4 rounded-lg sm:rounded-xl bg-black/40 hover:bg-black/60 backdrop-blur-md text-white border border-white/60 text-[11px] sm:text-xs uppercase tracking-widest font-bold shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer flex items-center space-x-2"
-          >
-            <Calendar className="w-3.5 h-3.5 text-white/90" />
-            <span>RESERVE A TABLE</span>
-          </button>
+          {canReserveTable && (
+            <button
+              onClick={onPlanVisit}
+              id="hero-reserve-table-btn"
+              className="px-8 sm:px-9 py-3.5 sm:py-4 rounded-lg sm:rounded-xl bg-black/40 hover:bg-black/60 backdrop-blur-md text-white border border-white/60 text-[11px] sm:text-xs uppercase tracking-widest font-bold shadow-2xl transition-all duration-300 hover:scale-105 cursor-pointer flex items-center space-x-2"
+            >
+              <Calendar className="w-3.5 h-3.5 text-white/90" />
+              <span>RESERVE A TABLE</span>
+            </button>
+          )}
         </div>
 
         {/* Autonomous Motion Picture Indicator */}

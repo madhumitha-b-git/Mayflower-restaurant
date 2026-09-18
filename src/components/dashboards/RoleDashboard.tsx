@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
 import { SuperAdminDashboardV2 } from './SuperAdminDashboardV2';
 import { OwnerDashboard } from './OwnerDashboard';
@@ -15,9 +14,10 @@ interface Props {
   onLogout: () => void;
   onBackToWebsite: () => void;
   onOpenReservations?: () => void;
+  onUpdateUser?: (user: UserProfile) => void;
 }
 
-export const RoleDashboard: React.FC<Props> = ({ user, onLogout, onBackToWebsite, onOpenReservations }) => {
+export const RoleDashboard: React.FC<Props> = ({ user, onLogout, onBackToWebsite, onOpenReservations, onUpdateUser }) => {
   const userRole = user.role || 'Customer';
   const isSuperAdmin = userRole === 'SuperAdmin';
 
@@ -50,32 +50,59 @@ export const RoleDashboard: React.FC<Props> = ({ user, onLogout, onBackToWebsite
       case 'Chef':        return <ChefDashboard        user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;
       case 'HR':          return <HRDashboard          user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;
       case 'Accountant':  return <AccountantDashboard  user={user} onLogout={onLogout} onSwitchRole={switchHandler} />;
-      default:            return <CustomerDashboard    user={user} onLogout={onLogout} onOpenReservations={onOpenReservations} onSwitchRole={switchHandler} onUpdateUser={undefined} />;
+      default:            return <CustomerDashboard    user={user} onLogout={onLogout} onOpenReservations={onOpenReservations} onSwitchRole={switchHandler} onUpdateUser={onUpdateUser} onBackToWebsite={onBackToWebsite} />;
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2]">
       {/* Persistent fixed top bar */}
-      <div className="fixed top-0 left-0 right-0 z-[9999] bg-[#02150c] border-b border-[#C5A880]/40 text-white flex items-center justify-between px-4 sm:px-8 h-11 shadow-md">
+      <div className="fixed top-0 left-0 right-0 z-[9999] bg-[#081C15] border-b border-[#C5A880]/20 text-gray-200 flex items-center justify-between px-4 sm:px-8 h-12 shadow-md">
         <button
           onClick={onBackToWebsite}
-          className="flex items-center space-x-2 text-xs font-semibold text-[#C5A880] hover:text-white transition-colors cursor-pointer"
+          className="inline-flex items-center gap-2 text-stone-300 hover:text-[#DFC993] transition-colors uppercase font-medium group cursor-pointer focus:outline-none"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span className="font-sans tracking-wide">Back to Mayflower Website</span>
+          <svg
+            className="w-4 h-4 text-[#C5A880] group-hover:-translate-x-0.5 transition-transform duration-200"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M10 19l-7-7m0 0l7-7m-7 7h18" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="font-semibold tracking-widest text-[11px]">BACK TO HOME</span>
         </button>
-        <div className="flex items-center space-x-4 text-xs text-[#D1CDBC]">
-          <span className="hidden sm:inline text-gray-400">Logged in as</span>
-          <span className="font-bold text-white font-serif tracking-wide">{user.name}</span>
-          <span className="bg-[#152a20] text-[#C5A880] border border-[#C5A880]/40 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider">
-            {isSuperAdmin && activeRole !== 'SuperAdmin' ? `Viewing: ${activeRole}` : userRole}
+
+        <div className="flex items-center gap-3 sm:gap-4 text-xs tracking-wider">
+          <button
+            onClick={() => {
+              if (activeRole === 'Customer') {
+                window.dispatchEvent(new CustomEvent('open-patron-profile'));
+              }
+            }}
+            className={`text-stone-300 hover:text-[#DFC993] transition-colors text-left focus:outline-none ${activeRole === 'Customer' ? 'cursor-pointer' : 'cursor-default'}`}
+            title={activeRole === 'Customer' ? 'View Patron Profile' : undefined}
+          >
+            Logged in as <strong className="text-white font-semibold ml-0.5">{user.name}</strong>
+          </button>
+          <span className="border border-[#C5A880]/70 text-[#DFC993] bg-[#C5A880]/10 text-[10px] tracking-widest px-2.5 py-0.5 rounded font-semibold uppercase shadow-xs">
+            {isSuperAdmin && activeRole !== 'SuperAdmin' ? `VIEWING: ${activeRole.toUpperCase()}` : (userRole || 'CUSTOMER').toUpperCase()}
           </span>
+          {activeRole === 'Customer' && (
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-patron-profile'))}
+              className="text-stone-400 hover:text-[#DFC993] uppercase font-semibold text-[11px] tracking-widest transition-colors pl-1 cursor-pointer focus:outline-none"
+            >
+              ACCOUNT
+            </button>
+          )}
           <button
             onClick={onLogout}
-            className="text-[10px] font-bold text-red-400 hover:text-red-300 uppercase tracking-widest cursor-pointer ml-2 border-l border-[#C5A880]/30 pl-3 py-0.5"
+            className="text-stone-400 hover:text-red-300 uppercase font-semibold text-[11px] tracking-widest transition-colors pl-1 cursor-pointer focus:outline-none ml-1 border-l border-[#C5A880]/30 pl-3"
           >
-            Logout
+            LOGOUT
           </button>
         </div>
       </div>

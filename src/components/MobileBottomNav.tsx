@@ -6,6 +6,7 @@ interface Props {
   onNavigate: (sectionId: string) => void;
   onOpenReservations: () => void;
   onBackToWebsite: () => void;
+  canReserveTable?: boolean;
 }
 
 export function MobileBottomNav({
@@ -13,6 +14,7 @@ export function MobileBottomNav({
   onNavigate,
   onOpenReservations,
   onBackToWebsite,
+  canReserveTable = true,
 }: Props) {
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#1A1A1A]/95 backdrop-blur-md border-t border-[#D1CDBC]/10 px-4 py-2 flex items-center justify-around text-xs">
@@ -37,15 +39,17 @@ export function MobileBottomNav({
         <span>Menu</span>
       </button>
 
-      <button
-        onClick={onOpenReservations}
-        className={`flex flex-col items-center gap-1 transition-colors ${
-          activeView === 'reservations' ? 'text-[#FAF7F2]' : 'text-[#8C857B]'
-        }`}
-      >
-        <Calendar className="w-5 h-5 text-[#C5A880]" />
-        <span>Book</span>
-      </button>
+      {canReserveTable && (
+        <button
+          onClick={onOpenReservations}
+          className={`flex flex-col items-center gap-1 transition-colors ${
+            activeView === 'reservations' ? 'text-[#FAF7F2]' : 'text-[#8C857B]'
+          }`}
+        >
+          <Calendar className="w-5 h-5 text-[#C5A880]" />
+          <span>Book</span>
+        </button>
+      )}
 
       <button
         onClick={() => onNavigate('outlets')}

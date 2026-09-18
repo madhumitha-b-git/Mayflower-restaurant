@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenLoyalty: () => void;
   onOpenDashboard: () => void;
   onLogout: () => void;
+  canReserveTable?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,7 +27,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLoyalty,
   onOpenDashboard,
   onLogout,
+  canReserveTable,
 }) => {
+  const showReserve = canReserveTable ?? (!currentUser || currentUser.role === 'Customer');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -245,14 +248,16 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
                 
-                <button
-                  onClick={onOpenReservations}
-                  id="btn-plan-your-visit-header"
-                  className="group relative inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#1A1A1A] hover:bg-[#2D4030] text-white text-[10px] uppercase tracking-widest font-bold transition-all duration-300 cursor-pointer shadow-xs hover:-translate-y-0.5"
-                >
-                  <Calendar className="w-3.5 h-3.5 text-[#D1CDBC] group-hover:scale-110 transition-transform" />
-                  <span>Reserve Table</span>
-                </button>
+                {showReserve && (
+                  <button
+                    onClick={onOpenReservations}
+                    id="btn-plan-your-visit-header"
+                    className="group relative inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#1A1A1A] hover:bg-[#2D4030] text-white text-[10px] uppercase tracking-widest font-bold transition-all duration-300 cursor-pointer shadow-xs hover:-translate-y-0.5"
+                  >
+                    <Calendar className="w-3.5 h-3.5 text-[#D1CDBC] group-hover:scale-110 transition-transform" />
+                    <span>Reserve Table</span>
+                  </button>
+                )}
 
                 {/* User Profile Area */}
                 {currentUser ? (
@@ -344,7 +349,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {activeView !== 'reservations' && (
+            {activeView !== 'reservations' && showReserve && (
               <button
                 onClick={onOpenReservations}
                 className="px-3.5 py-1.5 rounded-full bg-[#2D4030] text-white text-[10px] uppercase tracking-widest font-bold shadow-xs"
@@ -422,16 +427,18 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenReservations();
-              }}
-              className="w-full py-3 rounded-full bg-[#1A1A1A] text-white text-center text-[11px] uppercase tracking-widest font-bold flex items-center justify-center space-x-2 shadow-xs"
-            >
-              <Calendar className="w-4 h-4 text-[#E8E4DB]" />
-              <span>Plan Your Visit (Reserve Table)</span>
-            </button>
+            {showReserve && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenReservations();
+                }}
+                className="w-full py-3 rounded-full bg-[#1A1A1A] text-white text-center text-[11px] uppercase tracking-widest font-bold flex items-center justify-center space-x-2 shadow-xs"
+              >
+                <Calendar className="w-4 h-4 text-[#E8E4DB]" />
+                <span>Plan Your Visit (Reserve Table)</span>
+              </button>
+            )}
           </div>
 
           <div className="text-[11px] text-[#5A5A40] pt-3 flex flex-col sm:flex-row gap-2 items-start sm:items-center justify-between border-t border-[#E8E4DB]/60">

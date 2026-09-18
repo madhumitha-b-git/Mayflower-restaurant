@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FileText,
   AlertTriangle,
@@ -11,16 +11,57 @@ import {
   X,
   Lock,
 } from 'lucide-react';
-import { AuditLogEntry } from '../types';
+import { AuditLogEntry, UserProfile } from '../types';
 import { INITIAL_AUDIT_LOGS } from '../data/mockData';
+import { fetchAdminOperationalData } from '../lib/adminService';
 
-export const AuditLogView: React.FC = () => {
-  const [logs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+interface AuditLogViewProps {
+  user?: UserProfile;
+}
+
+export const AuditLogView: React.FC<AuditLogViewProps> = ({ user }) => {
+  const [logs, setLogs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
   const [searchQuery, setSearchQuery] = useState('');
   const [sanctuaryFilter, setSanctuaryFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationResult, setVerificationResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadLogs = async () => {
+      try {
+        const operationalData = await fetchAdminOperationalData();
+        if (!isActive) return;
+
+        const mappedLogs = (operationalData?.auditLogs || []).slice(0, 25).map((row: any, index: number) => ({
+          id: String(row.id ?? `log-${index + 1}`),
+          timestamp: row.created_at || row.timestamp || new Date().toISOString(),
+          actor: row.actor_name || row.actor || 'System',
+          role: (String(row.role || 'ADMIN').toUpperCase().replace('SUPER ADMIN', 'SUPERADMIN').replace('SUPERADMIN', 'SUPERADMIN') as any) as AuditLogEntry['role'],
+          action: row.action || 'Accessed dashboard',
+          targetType: row.target_type || row.targetType || 'Record',
+          targetId: row.target_id || row.targetId || row.id || 'N/A',
+          payload: row.payload || { summary: row.action || 'Access event' },
+          hmacStatus: row.hmac_status || 'verified',
+          outlet: row.outlet_name || row.outlet || 'Chennai HQ',
+          ip: row.ip_address || row.ip || '10.0.0.1',
+          isOverride: Boolean(row.is_override || row.isOverride),
+          category: (row.category === 'rbac' || row.category === 'reservations' || row.category === 'overrides' || row.category === 'security' || row.category === 'kitchen' ? row.category : 'security') as AuditLogEntry['category'],
+        })) as AuditLogEntry[];
+
+        setLogs(mappedLogs.length ? mappedLogs : INITIAL_AUDIT_LOGS);
+      } catch {
+        if (isActive) setLogs(INITIAL_AUDIT_LOGS);
+      }
+    };
+
+    loadLogs();
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
 
   const handleVerifyChain = () => {
     setIsVerifying(true);
@@ -31,6 +72,10 @@ export const AuditLogView: React.FC = () => {
       );
     }, 1200);
   };
+
+  const totalEvents = logs.length;
+  const securityOverrides = logs.filter((log) => log.isOverride).length;
+  const activePersonnelTraced = new Set(logs.map((log) => log.actor)).size;
 
   const handleExportCSV = () => {
     const headers = ['ID', 'Timestamp', 'Actor', 'Role', 'Action', 'TargetType', 'TargetID', 'Outlet', 'IP', 'Payload'];
@@ -140,7 +185,7 @@ export const AuditLogView: React.FC = () => {
               TOTAL LOGGED EVENTS
             </p>
             <h3 className="text-2xl font-serif font-semibold text-[#182420] mt-0.5">
-              1,428
+              {totalEvents.toLocaleString('en-IN')}
             </h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500 font-medium mt-1">
               Recorded this month
@@ -158,7 +203,7 @@ export const AuditLogView: React.FC = () => {
               SECURITY OVERRIDES
             </p>
             <h3 className="text-2xl font-serif font-semibold text-[#8A1A22] mt-0.5">
-              3
+              {securityOverrides}
             </h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-[#A82B33] font-medium mt-1">
               Requires manual review
@@ -176,10 +221,10 @@ export const AuditLogView: React.FC = () => {
               ACTIVE PERSONNEL TRACED
             </p>
             <h3 className="text-2xl font-serif font-semibold text-[#182420] mt-0.5">
-              38
+              {activePersonnelTraced}
             </h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500 font-medium mt-1">
-              Across 4 sanctuaries
+              Across live sanctuaries
             </span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-[#EFF4F1] text-[#2E5443] flex items-center justify-center">

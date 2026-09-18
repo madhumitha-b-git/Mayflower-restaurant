@@ -3,6 +3,7 @@ import { X, Mail, ArrowRight, CheckCircle2, User, LogIn, UserPlus, Eye, EyeOff, 
 import { WelcomeEmailData } from '../data/userStorage';
 import { UserProfile } from '../types';
 import { supabaseLogin, supabaseRegister } from '../lib/authService';
+import { MayflowerLogo } from './MayflowerLogo';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -86,9 +87,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onLoginSu
         {/* Header */}
         <div className="bg-[#2D4030] text-white p-6 sm:p-8">
           <div className="flex items-center space-x-2 mb-3">
-            <div className="w-8 h-8 rounded-xl bg-white/10 p-1 border border-white/20 shrink-0 overflow-hidden">
-              <img src="/mayflower-logo.png" alt="The Mayflower" className="w-full h-full object-contain brightness-200" />
-            </div>
+            <MayflowerLogo className="w-8 h-8 !rounded-xl" variant="gold" />
             <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-[#D1CDBC]">Sanctuary Portal</span>
           </div>
           <h3 className="font-serif text-2xl font-normal text-white">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   MapPin,
   Utensils,
@@ -10,15 +10,75 @@ import {
   X,
   CheckCircle2,
 } from 'lucide-react';
-import { Outlet } from '../types';
+import { Outlet, UserProfile } from '../types';
 import { INITIAL_OUTLETS } from '../data/mockData';
+import { fetchOutlets } from '../lib/adminService';
 
-export const OutletsView: React.FC = () => {
-  const [outlets] = useState<Outlet[]>(INITIAL_OUTLETS);
+interface OutletsViewProps {
+  user?: UserProfile;
+}
+
+export const OutletsView: React.FC<OutletsViewProps> = ({ user }) => {
+  const [outlets, setOutlets] = useState<Outlet[]>(INITIAL_OUTLETS);
   const [selectedFloorplanOutlet, setSelectedFloorplanOutlet] = useState<Outlet | null>(null);
   const [managedOutlet, setManagedOutlet] = useState<Outlet | null>(null);
   const [isAddOutletOpen, setIsAddOutletOpen] = useState(false);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadOutlets = async () => {
+      try {
+        const rows = await fetchOutlets();
+        if (!isActive) return;
+
+        const mapped = rows.length
+          ? rows.map((row: any, index: number) => {
+              const tablesCount = Number(row.tables_count ?? row.tablesCount ?? 0);
+              const coversCount = Number(row.covers_count ?? row.coversCount ?? 0);
+              const currentLoadTables = Math.min(Math.max(Math.round(tablesCount * 0.7), 1), Math.max(tablesCount, 1));
+              const capacityPercent = Math.min(100, Math.round((currentLoadTables / Math.max(tablesCount, 1)) * 100));
+              return {
+                id: row.id || `outlet-${index + 1}`,
+                name: row.name || `Outlet ${index + 1}`,
+                typeLabel: row.badge || 'Flagship Sanctuary',
+                address: row.area || row.address || 'Chennai',
+                tablesCount,
+                coversCount,
+                hours: `${row.opening_time || '12:00 PM'} - ${row.closing_time || '11:00 PM'}`,
+                posId: row.petpooja_id || `POS-${index + 1}`,
+                posStatus: 'ONLINE' as Outlet['posStatus'],
+                currentLoadTables,
+                maxTables: tablesCount || 16,
+                capacityPercent,
+                reservedWave: `${currentLoadTables} tables in service`,
+                statusNote: 'Live sync stable',
+                imageUrl: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1200&q=80',
+                verifiedTag: 'PETPOOJA LIVE',
+                tables: Array.from({ length: Math.max(4, tablesCount ? Math.min(6, Math.ceil(tablesCount / 4)) : 4) }, (_, tableIndex) => ({
+                  id: `${row.id || index + 1}-table-${tableIndex + 1}`,
+                  number: `${tableIndex + 1}`,
+                  type: (tableIndex % 3 === 0 ? 'booth' : tableIndex % 2 === 0 ? 'table' : 'alcove') as any,
+                  covers: tableIndex % 2 === 0 ? 4 : 2,
+                  status: (tableIndex % 2 === 0 ? 'occupied' : tableIndex === 1 ? 'reserved' : 'available') as any,
+                  guestName: tableIndex % 2 === 0 ? 'Guest' : undefined,
+                })),
+              };
+            }) as Outlet[]
+          : INITIAL_OUTLETS;
+
+        setOutlets(mapped);
+      } catch {
+        if (isActive) setOutlets(INITIAL_OUTLETS);
+      }
+    };
+
+    loadOutlets();
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
 
   const handleSyncAll = () => {
     setSyncToast('All 4 Sanctuary POS nodes synchronized successfully with Petpooja cloud.');

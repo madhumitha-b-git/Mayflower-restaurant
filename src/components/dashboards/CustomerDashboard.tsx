@@ -1,9 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { UserProfile } from '../../types';
 import { getDataProvider } from '../../data/DataProvider';
 import { PlanYourVisit } from '../PlanYourVisit';
-import { Calendar, Utensils, Star, CheckCircle, Clock, Users, ArrowRight, MessageSquare, AlertCircle } from 'lucide-react';
+
+import { PatronProfile, Reservation, Review, SalonVenue, ReviewMemory } from './customer/types';
+import { SALON_VENUES, INITIAL_REVIEWS } from './customer/initialData';
+import { PatronCard } from './customer/PatronCard';
+import { QuickActions } from './customer/QuickActions';
+import { UpcomingReservations } from './customer/UpcomingReservations';
+import { ExperienceShowcase } from './customer/ExperienceShowcase';
+import { ReviewsSection } from './customer/ReviewsSection';
+import { FeedbackModal } from './customer/FeedbackModal';
+import { VenuesModal } from './customer/VenuesModal';
+import { RewardsModal } from './customer/RewardsModal';
+import { PatronProfileModal } from './customer/PatronProfileModal';
+import { CancelModal } from './customer/CancelModal';
+import { ModifyReservationModal } from './customer/ModifyReservationModal';
+import { Toast, ToastMessage } from './customer/Toast';
 
 interface Props {
   user: UserProfile;
@@ -11,620 +25,595 @@ interface Props {
   onOpenReservations?: () => void;
   onSwitchRole?: (role: string) => void;
   onUpdateUser?: (user: UserProfile) => void;
-}
-
-interface CustomerRow {
-  dietary_preferences: string[] | null;
-  allergies: string | null;
-  preferred_seating: string | null;
-  total_visits: number;
-  loyalty_tier: string | null;
-  loyalty_points: number;
-}
-
-interface ReservationRow {
-  id: string;
-  booking_code: string | null;
-  outlet: string | null;
-  reservation_date: string | null;
-  time_slot: string | null;
-  guests: number | null;
-  status: string | null;
-  booked_at: string | null;
-  special_occasion: string | null;
-  dietary_prefs: string | null;
-}
-
-interface FeedbackRow {
-  id: string;
-  outlet: string | null;
-  rating: number | null;
-  comment: string | null;
-  created_at: string | null;
-  visit_date: string | null;
-}
-
-interface OutletRow {
-  id: string;
-  name: string;
+  onBackToWebsite?: () => void;
 }
 
 const RESERVATION_BONUS = 300;
 const FEEDBACK_BONUS = 100;
 
+const getVenueImage = (outletName: string): string => {
+  const lower = (outletName || '').toLowerCase();
+  if (lower.includes('poes')) {
+    return 'https://lh3.googleusercontent.com/aida/AEtjO1Wo3D-NxlZuevsKxWUQc0PzydoS3peIKmiYY6QtnfINRqzJH02yMjS0jyQlLRrPcoks-ukpVd6K5xWLyyhHQfFjxQqZOa5nNWJDBuHYrJTu72nmEU_bCgxQC3pO96YcOrOBKTFu19K5R4fqScnrXH4aKPDEVBcylGJeaLUSEUSH_sHUoCntMrsXi7J-tSUZiq1jax_EwSzs4k4oDLdcrB_MwsYmDDYbVFyhMy_SpJiZyTGzd7-K2F880LY';
+  }
+  if (lower.includes('ecr') || lower.includes('palavakkam') || lower.includes('seaside')) {
+    return 'https://lh3.googleusercontent.com/aida/AEtjO1XW-PaWkerRX2rvFgm1YiLEKzo5LKFtMeTwMs7UiL6mhBQmcC9lbh-mMmopPY6Axaih3QQJvZJLq-mdcjNJV0lkD6d0GM4CmajtbU08da42C-tGwMh2UFcISgk52hMt3mo_zpQFrrCoeVW39FSWDg2p0XyuSM7qlEXhXtrzfjy6H1eD4eEG7ew3t-eFhUYJh0ggjPCLpbdKF2q3uHm2oH1j2khFg7JFK4uzGYuZVS8tekVuTXpiceih4Bg';
+  }
+  return 'https://lh3.googleusercontent.com/aida/AEtjO1XKIlQBg8XDWITGCIcXI6RJC_RINGskS7HFz_6rq_LI4WMvZ3BqiEPW08_fkxqfIjyp5jsZ6zRJAQ-AEMHP_1XqncR6UGUOOwxqaichKeou8aGL_gWOj-ReFqc8Rru0UxozJi4PyVEXIbP9wypwYPJ_sIAfE5Bs9UTP0zRNll_fy8GZLCTUIbLaTxNp6pdyHqgO19bnaH6jWRVPydTBya32inEkSmbflUk207E_x8B_X8fPT_ukjEe1hXY';
+};
 
+const getSalonTag = (outletName: string): string => {
+  const lower = (outletName || '').toLowerCase();
+  if (lower.includes('poes')) return 'POES GARDEN SALON';
+  if (lower.includes('ecr') || lower.includes('palavakkam')) return 'PALAVAKKAM ECR SEASIDE';
+  if (lower.includes('flagship')) return 'FLAGSHIP GRAND SALON';
+  return `${outletName.toUpperCase()} SALON`;
+};
 
-const DEFAULT_OUTLETS: OutletRow[] = [
-  { id: 'o1', name: 'Poes Garden' },
-  { id: 'o2', name: 'Alwarpet' },
-  { id: 'o3', name: 'Anna Nagar' },
-  { id: 'o4', name: 'ECR Sanctuary' }
-];
+const getTierProgress = (points: number) => {
+  if (points >= 2000) {
+    return { tier: 'Sanctuary VIP', nextTier: 'Sanctuary VIP', ptsToNextTier: 0, maxTierStars: 2000 };
+  }
+  if (points >= 800) {
+    return { tier: 'Gold', nextTier: 'Sanctuary VIP', ptsToNextTier: 2000 - points, maxTierStars: 2000 };
+  }
+  return { tier: 'Green', nextTier: 'Gold Tier', ptsToNextTier: 800 - points, maxTierStars: 800 };
+};
 
-export const CustomerDashboard: React.FC<Props> = ({ user, onUpdateUser }) => {
+export const CustomerDashboard: React.FC<Props> = ({
+  user,
+  onLogout: _onLogout,
+  onOpenReservations: _onOpenReservations,
+  onSwitchRole: _onSwitchRole,
+  onUpdateUser,
+  onBackToWebsite: _onBackToWebsite,
+}) => {
+  // Use older dashboard reservation wizard (PlanYourVisit)
   const [showReservationWizard, setShowReservationWizard] = useState(false);
-  const [customer, setCustomer] = useState<CustomerRow | null>(null);
-  const [reservations, setReservations] = useState<ReservationRow[]>([]);
-  const [feedbackHistory, setFeedbackHistory] = useState<FeedbackRow[]>([]);
-  const [outlets, setOutlets] = useState<OutletRow[]>(DEFAULT_OUTLETS);
-  const [loading, setLoading] = useState(true);
+  const [targetOutlet, setTargetOutlet] = useState('Poes Garden');
 
-  // Inline modification
-  const [modifyingId, setModifyingId] = useState<string | null>(null);
-  const [modifyDate, setModifyDate] = useState('');
-  const [modifySlot, setModifySlot] = useState('');
-  const [modifyGuests, setModifyGuests] = useState('');
+  // Patron Profile State
+  const initialTierInfo = getTierProgress(user.rewardPoints || 600);
+  const [patron, setPatron] = useState<PatronProfile>({
+    name: user.name || 'Patron',
+    monogram: (user.name?.[0] || 'M').toUpperCase(),
+    tier: (user.tier as any) || initialTierInfo.tier,
+    stars: user.rewardPoints ?? 600,
+    maxTierStars: initialTierInfo.maxTierStars,
+    nextTier: initialTierInfo.nextTier,
+    ptsToNextTier: initialTierInfo.ptsToNextTier,
+    memberSince: user.joinedDate || '14 Sept 2026',
+    totalVisits: user.totalVisits ?? 0,
+    dietaryPreferences: ['Truffle Degustation', 'Sparkling Mineral Water', 'No Shellfish'],
+    preferredSeating: 'Quiet corner or Verandah booth',
+  });
 
-  // Feedback modal
+  // Reservations State
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  // Reviews State
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    try {
+      const saved = localStorage.getItem(`mayflower_reviews_${user.id}`);
+      return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+    } catch {
+      return INITIAL_REVIEWS;
+    }
+  });
+
+  const [venues] = useState<SalonVenue[]>(SALON_VENUES);
+
+  // Modals visibility
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  const [fbOutlet, setFbOutlet] = useState('Poes Garden');
-  const [fbRating, setFbRating] = useState(5);
-  const [fbComment, setFbComment] = useState('');
-  const [fbVisitDate, setFbVisitDate] = useState('');
-  const [submittingFb, setSubmittingFb] = useState(false);
+  const [isVenuesOpen, setIsVenuesOpen] = useState(false);
+  const [isRewardsOpen, setIsRewardsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [cancelingReservation, setCancelingReservation] = useState<Reservation | null>(null);
+  const [modifyingReservation, setModifyingReservation] = useState<Reservation | null>(null);
 
-  const [toast, setToast] = useState<{ show: boolean; message: string; error?: boolean }>({ show: false, message: '' });
+  // Notification Toast State
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  const showToast = (msg: string, error = false) => {
-    setToast({ show: true, message: msg, error });
-    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3500);
+  const showToast = (title: string, message: string) => {
+    const id = Date.now().toString();
+    setToast({ id, title, message });
+    setTimeout(() => {
+      setToast((curr) => (curr?.id === id ? null : curr));
+    }, 5000);
   };
 
-  useEffect(() => { fetchAll(); }, [user.id, user.reservations?.length, user.rewardPoints]);
-
-  const fetchAll = async () => {
-    setLoading(true);
+  const fetchAll = useCallback(async () => {
     try {
       const provider = getDataProvider();
-      const [providerRes, providerFb, providerOutlets] = await Promise.all([
+      const [providerRes, providerFb] = await Promise.all([
         provider.getReservations(user).catch(() => []),
         provider.getFeedback(user).catch(() => []),
-        provider.getOutlets(user).catch(() => []),
       ]);
 
+      // Fetch customer row for preferences
       try {
-        const custRes = await supabase.from('customers').select('dietary_preferences,allergies,preferred_seating,total_visits,loyalty_tier,loyalty_points').eq('user_id', user.id).maybeSingle();
-        if (custRes?.data) setCustomer(custRes.data as CustomerRow);
+        const custRes = await supabase
+          .from('customers')
+          .select('dietary_preferences,allergies,preferred_seating,total_visits,loyalty_tier,loyalty_points')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (custRes?.data) {
+          const c = custRes.data;
+          const currentStars = Math.max(c.loyalty_points ?? 0, user.rewardPoints ?? 0);
+          const tInfo = getTierProgress(currentStars);
+          setPatron((prev) => ({
+            ...prev,
+            stars: currentStars,
+            tier: c.loyalty_tier || tInfo.tier,
+            nextTier: tInfo.nextTier,
+            ptsToNextTier: tInfo.ptsToNextTier,
+            maxTierStars: tInfo.maxTierStars,
+            totalVisits: c.total_visits ?? prev.totalVisits,
+            dietaryPreferences: c.dietary_preferences || prev.dietaryPreferences,
+            preferredSeating: c.preferred_seating || prev.preferredSeating,
+          }));
+        }
       } catch {}
 
+      // Map reservations
+      let mappedReservations: Reservation[] = [];
       if (providerRes && providerRes.length > 0) {
-        setReservations(providerRes.map((r: any) => ({
-          id: r.id,
-          booking_code: r.bookingCode,
-          outlet: r.outlet,
-          reservation_date: r.date,
-          time_slot: r.timeSlot,
-          guests: r.guests,
-          status: r.status,
-          booked_at: r.bookedAt,
-          special_occasion: r.specialRequests || null,
-          dietary_prefs: null,
-        })));
+        mappedReservations = providerRes.map((r: any) => {
+          const outletName = r.outlet || 'Poes Garden';
+          return {
+            id: r.id,
+            ref: r.bookingCode ? `#${r.bookingCode}` : `#MF-${r.id.slice(-4)}`,
+            salon: outletName,
+            salonTag: getSalonTag(outletName),
+            date: r.date || '—',
+            time: r.timeSlot || '—',
+            experienceType: (r.timeSlot || '').toLowerCase().includes('tea') ? 'Afternoon Tea' : 'Fine Dining Tasting',
+            guests: r.guests || 2,
+            status: ((r.status || 'CONFIRMED').toUpperCase() as any),
+            imageUrl: getVenueImage(outletName),
+            notes: r.specialRequests || undefined,
+          };
+        });
       } else {
-        const { data: resData } = await supabase.from('reservations').select('id,booking_code,reservation_date,time_slot,guests,status,special_occasion,dietary_prefs,outlets(name)').eq('customer_id', user.id).order('reservation_date', { ascending: false });
-        if (resData) {
-          setReservations((resData as any[]).map(r => ({
-            ...r,
-            outlet: r.outlets?.name || r.outlet || 'Mayflower Outlet'
-          })));
+        const { data: resData } = await supabase
+          .from('reservations')
+          .select('id,booking_code,reservation_date,time_slot,reservation_time,party_size,guests,status,special_occasion,special_requests,outlets(name)')
+          .eq('customer_id', user.id)
+          .order('reservation_date', { ascending: false });
+
+        if (resData && resData.length > 0) {
+          mappedReservations = (resData as any[]).map((r) => {
+            const outletName = r.outlets?.name || 'Poes Garden';
+            const timeVal = r.time_slot || r.reservation_time || '7:30 PM';
+            return {
+              id: r.id,
+              ref: r.booking_code ? `#${r.booking_code}` : `#MF-${r.id.slice(-4)}`,
+              salon: outletName,
+              salonTag: getSalonTag(outletName),
+              date: r.reservation_date || '—',
+              time: timeVal,
+              experienceType: timeVal.toLowerCase().includes('tea') ? 'Afternoon Tea' : 'Fine Dining Tasting',
+              guests: r.guests || r.party_size || 2,
+              status: ((r.status || 'CONFIRMED').toUpperCase() as any),
+              imageUrl: getVenueImage(outletName),
+              notes: r.special_occasion || r.special_requests || undefined,
+            };
+          });
         }
       }
 
-      const dbFb = providerFb.map((f: any) => ({
+      // Merge user prop reservations if any not included
+      if (user.reservations) {
+        const existingIds = new Set(mappedReservations.map((r) => r.id));
+        user.reservations.forEach((ur) => {
+          if (!existingIds.has(ur.id)) {
+            const outletName = ur.outlet || 'Poes Garden';
+            mappedReservations.push({
+              id: ur.id,
+              ref: ur.bookingCode ? `#${ur.bookingCode}` : `#MF-${ur.id.slice(-4)}`,
+              salon: outletName,
+              salonTag: getSalonTag(outletName),
+              date: ur.date || '—',
+              time: ur.timeSlot || '—',
+              experienceType: (ur.timeSlot || '').toLowerCase().includes('tea') ? 'Afternoon Tea' : 'Fine Dining Tasting',
+              guests: ur.guests || 2,
+              status: ((ur.status || 'CONFIRMED').toUpperCase() as any),
+              imageUrl: getVenueImage(outletName),
+            });
+          }
+        });
+      }
+
+      setReservations(mappedReservations);
+
+      // Map feedback
+      const dbReviews: Review[] = providerFb.map((f: any) => ({
         id: f.id,
-        outlet: f.outlet || 'Mayflower Outlet',
+        salon: f.outlet || 'Poes Garden Salon',
         rating: f.rating || 5,
-        comment: f.message || 'Great experience!',
-        created_at: f.createdAt,
-        visit_date: f.createdAt
+        text: f.comment || f.message || 'Exceptional experience.',
+        visitDate: f.visitDate || 'Recent Visit',
+        formattedDate: f.createdAt ? new Date(f.createdAt).toLocaleDateString('en-IN') : '',
+        isVerified: true,
       }));
 
-      let localFb: FeedbackRow[] = [];
-      try {
-        const saved = localStorage.getItem(`mayflower_feedback_${user.id}`);
-        if (saved) localFb = JSON.parse(saved);
-      } catch {}
-
-      const combinedIds = new Set(dbFb.map((f: any) => f.id));
-      const extraLocal = localFb.filter((f: any) => !combinedIds.has(f.id));
-      setFeedbackHistory([...dbFb, ...extraLocal]);
-
-      if (providerOutlets && providerOutlets.length > 0) {
-        setOutlets(providerOutlets.map((o: any) => ({ id: o.id, name: o.name })));
-        setFbOutlet(providerOutlets[0].name);
-      } else {
-        setOutlets(DEFAULT_OUTLETS);
-        setFbOutlet(DEFAULT_OUTLETS[0].name);
+      if (dbReviews.length > 0) {
+        setReviews(dbReviews);
       }
-    } catch { showToast('Failed to load profile data.', true); }
-    finally { setLoading(false); }
-  };
+    } catch {
+      // Fallback gracefully
+    }
+  }, [user]);
 
-  const handleModifySave = async (id: string) => {
-    const updates: Record<string, string | number> = {};
-    if (modifyDate) updates.reservation_date = modifyDate;
-    if (modifySlot) updates.time_slot = modifySlot;
-    if (modifyGuests) updates.guests = parseInt(modifyGuests);
-    const { error } = await supabase.from('reservations').update(updates).eq('id', id).eq('customer_id', user.id);
-    if (error) { showToast('Failed to update reservation.', true); return; }
-    showToast('Reservation updated successfully.');
-    setModifyingId(null);
+  useEffect(() => {
     fetchAll();
+  }, [fetchAll]);
+
+  // Sync reviews to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(`mayflower_reviews_${user.id}`, JSON.stringify(reviews));
+    } catch {}
+  }, [reviews, user.id]);
+
+  // Listen for profile open events from the unified top bar
+  useEffect(() => {
+    const handleOpenProfileEvent = () => setIsProfileOpen(true);
+    window.addEventListener('open-patron-profile', handleOpenProfileEvent);
+    return () => window.removeEventListener('open-patron-profile', handleOpenProfileEvent);
+  }, []);
+
+  // Handle opening older reservation wizard (PlanYourVisit)
+  const handleOpenReserve = (venueName?: string) => {
+    if (venueName) {
+      setTargetOutlet(venueName.replace(' Salon', ''));
+    } else {
+      setTargetOutlet('Poes Garden');
+    }
+    setShowReservationWizard(true);
   };
 
-  const handleCancel = async (id: string) => {
-    if (!window.confirm('Cancel this reservation? 300 loyalty points will be deducted.')) return;
-    const { error: delError } = await supabase.from('reservations').delete().eq('id', id).eq('customer_id', user.id);
-    if (delError) { showToast('Failed to cancel reservation.', true); return; }
-    const { data: profileData } = await supabase.from('user_profiles').select('reward_points,transactions').eq('id', user.id).single();
-    if (profileData) {
-      const cancelTx = {
-        id: `cancel-${id}`,
-        type: 'cancelled_reservation',
-        points: -RESERVATION_BONUS,
-        description: 'Points deducted for cancelled reservation',
-        date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+  // Handle modifying reservation
+  const handleModifyReservation = (reservation: Reservation) => {
+    setModifyingReservation(reservation);
+  };
+
+  const handleSaveModifiedReservation = async (
+    reservationId: string,
+    updatedData: { date: string; time: string; guests: number; notes?: string }
+  ) => {
+    try {
+      const updates: Record<string, any> = {
+        reservation_date: updatedData.date,
+        time_slot: updatedData.time,
+        guests: updatedData.guests,
       };
-      const newPoints = Math.max(0, (profileData.reward_points ?? 0) - RESERVATION_BONUS);
-      const { error: updateError } = await supabase.from('user_profiles').update({
-        reward_points: newPoints,
-        transactions: [...(profileData.transactions ?? []), cancelTx],
-      }).eq('id', user.id);
-      if (!updateError && onUpdateUser) {
-        const { fetchUserProfile } = await import('../../lib/authService');
-        const updated = await fetchUserProfile(user.id);
-        if (updated) onUpdateUser(updated);
-      }
+      if (updatedData.notes) updates.special_occasion = updatedData.notes;
+
+      await supabase
+        .from('reservations')
+        .update(updates)
+        .eq('id', reservationId)
+        .eq('customer_id', user.id);
+
+      setReservations((prev) =>
+        prev.map((r) =>
+          r.id === reservationId
+            ? {
+                ...r,
+                date: updatedData.date,
+                time: updatedData.time,
+                guests: updatedData.guests,
+                notes: updatedData.notes,
+              }
+            : r
+        )
+      );
+
+      showToast(
+        'Reservation Updated',
+        `Your reservation has been updated for ${updatedData.date} at ${updatedData.time}.`
+      );
+      fetchAll();
+    } catch {
+      showToast('Update Failed', 'Could not update reservation. Please try again.');
     }
-    showToast('Reservation cancelled. 300 points deducted.');
-    fetchAll();
   };
 
-  const handleSubmitFeedback = async () => {
-    if (!fbOutlet || !fbComment) { showToast('Please fill outlet and comment.', true); return; }
-    if (feedbackedOutlets.has(fbOutlet)) {
-      showToast('You have already submitted feedback for this outlet.', true);
-      return;
-    }
-    setSubmittingFb(true);
+  // Handle cancelling reservation
+  const handleConfirmCancel = async (reservationId: string) => {
+    try {
+      await supabase
+        .from('reservations')
+        .delete()
+        .eq('id', reservationId)
+        .eq('customer_id', user.id);
 
-    const newFbItem: FeedbackRow = {
-      id: `fb-${Date.now()}`,
-      outlet: fbOutlet,
-      rating: fbRating,
-      comment: fbComment,
-      created_at: new Date().toISOString(),
-      visit_date: fbVisitDate || new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+      // Deduct loyalty points if applicable
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('reward_points,transactions')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profileData) {
+        const cancelTx = {
+          id: `cancel-${reservationId}`,
+          type: 'cancelled_reservation',
+          points: -RESERVATION_BONUS,
+          description: 'Points deducted for cancelled reservation',
+          date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        };
+        const newPoints = Math.max(0, (profileData.reward_points ?? 0) - RESERVATION_BONUS);
+        await supabase
+          .from('user_profiles')
+          .update({
+            reward_points: newPoints,
+            transactions: [...(profileData.transactions ?? []), cancelTx],
+          })
+          .eq('id', user.id);
+
+        try {
+          await supabase.from('customers').update({ loyalty_points: newPoints }).eq('user_id', user.id);
+        } catch {}
+
+        const tInfo = getTierProgress(newPoints);
+        setPatron((prev) => ({
+          ...prev,
+          stars: newPoints,
+          tier: tInfo.tier,
+          nextTier: tInfo.nextTier,
+          ptsToNextTier: tInfo.ptsToNextTier,
+        }));
+
+        if (onUpdateUser) {
+          onUpdateUser({
+            ...user,
+            rewardPoints: newPoints,
+          });
+        }
+      }
+
+      setReservations((prev) => prev.filter((r) => r.id !== reservationId));
+      showToast(
+        'Reservation Cancelled',
+        'Your salon table booking has been released.'
+      );
+      fetchAll();
+    } catch {
+      showToast('Cancellation Failed', 'Could not cancel reservation.');
+    }
+  };
+
+  // Handle submitting feedback
+  const handleSubmitFeedback = async (feedback: {
+    salon: string;
+    experienceType: string;
+    rating: number;
+    notes: string;
+    attachedMemory?: ReviewMemory;
+  }) => {
+    const today = new Date();
+    const formattedDate = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
+    const visitDateStr = `${today.getDate()} ${today.toLocaleString('en-US', { month: 'short' })} ${today.getFullYear()}`;
+
+    const newReview: Review = {
+      id: `rev-${Date.now()}`,
+      salon: feedback.salon,
+      rating: feedback.rating,
+      text: feedback.notes,
+      visitDate: visitDateStr,
+      formattedDate: formattedDate,
+      isVerified: true,
+      attachedMemory: feedback.attachedMemory,
     };
 
+    setReviews((prev) => [newReview, ...prev]);
+
+    // Calculate awarded stars
+    const bonusAwarded = FEEDBACK_BONUS + (feedback.attachedMemory ? 50 : 0);
+    const newPoints = patron.stars + bonusAwarded;
+    const newVisits = patron.totalVisits + 1;
+    const tInfo = getTierProgress(newPoints);
+
+    setPatron((prev) => ({
+      ...prev,
+      stars: newPoints,
+      tier: tInfo.tier,
+      nextTier: tInfo.nextTier,
+      ptsToNextTier: tInfo.ptsToNextTier,
+      totalVisits: newVisits,
+    }));
+
+    // Update Supabase feedback & profile
     try {
       await supabase.from('feedback').insert({
         user_id: user.id,
         customer_id: user.id,
-        outlet: fbOutlet,
-        rating: fbRating,
-        comment: fbComment,
-        message: fbComment,
-        visit_date: fbVisitDate || null
+        outlet: feedback.salon,
+        rating: feedback.rating,
+        comment: feedback.notes,
+        message: feedback.notes,
+        visit_date: visitDateStr,
       });
-    } catch {}
 
-    const updatedFbHistory = [newFbItem, ...feedbackHistory];
-    setFeedbackHistory(updatedFbHistory);
-    try {
-      localStorage.setItem(`mayflower_feedback_${user.id}`, JSON.stringify(updatedFbHistory));
-    } catch {}
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('reward_points,transactions')
+        .eq('id', user.id)
+        .maybeSingle();
 
-    const { data: profileData } = await supabase.from('user_profiles').select('reward_points,transactions').eq('id', user.id).single();
-    const currentPts = Math.max(profileData?.reward_points ?? 0, user.rewardPoints ?? 0, customer?.loyalty_points ?? 0);
-    const newPoints = currentPts + FEEDBACK_BONUS;
+      const fbTx = {
+        id: `feedback-${Date.now()}`,
+        type: 'feedback_bonus',
+        points: bonusAwarded,
+        description: `Points earned for feedback on ${feedback.salon}`,
+        date: formattedDate,
+      };
 
-    const fbTx = {
-      id: `feedback-${Date.now()}`,
-      type: 'feedback_bonus',
-      points: FEEDBACK_BONUS,
-      description: `Points earned for feedback on ${fbOutlet}`,
-      date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-    };
+      const updatedTx = [...(profileData?.transactions ?? user.transactions ?? []), fbTx];
 
-    const updatedTx = [...(profileData?.transactions ?? user.transactions ?? []), fbTx];
-
-    await supabase.from('user_profiles').update({
-      reward_points: newPoints,
-      transactions: updatedTx,
-    }).eq('id', user.id);
-
-    try {
-      await supabase.from('customers').update({ loyalty_points: newPoints }).eq('user_id', user.id);
-    } catch {}
-
-    if (onUpdateUser) {
-      onUpdateUser({
-        ...user,
-        rewardPoints: newPoints,
+      await supabase.from('user_profiles').update({
+        reward_points: newPoints,
+        total_visits: newVisits,
         transactions: updatedTx,
-      });
-    }
+      }).eq('id', user.id);
 
-    setSubmittingFb(false);
-    showToast(`Feedback submitted! +${FEEDBACK_BONUS} points earned.`);
-    setIsFeedbackOpen(false);
-    setFbComment(''); setFbVisitDate(''); setFbRating(5);
-    fetchAll();
-  };
+      try {
+        await supabase.from('customers').update({
+          loyalty_points: newPoints,
+          total_visits: newVisits,
+        }).eq('user_id', user.id);
+      } catch {}
 
-  const loyaltyPoints = Math.max(customer?.loyalty_points ?? 0, user.rewardPoints ?? 0);
-  
-  const getTierProgress = (points: number) => {
-    if (points >= 2000) {
-      return { tier: 'Sanctuary VIP', ptsToNext: 0, progress: 100, statusText: 'Highest VIP Tier Unlocked 👑' };
-    }
-    if (points >= 800) {
-      const ptsToNext = 2000 - points;
-      const progress = Math.min(100, Math.max(0, ((points - 800) / (2000 - 800)) * 100));
-      return { tier: 'Gold', ptsToNext, progress, statusText: `${ptsToNext.toLocaleString()} pts to Sanctuary VIP` };
-    }
-    const ptsToNext = 800 - points;
-    const progress = Math.min(100, Math.max(0, (points / 800) * 100));
-    return { tier: 'Green', ptsToNext, progress, statusText: `${ptsToNext.toLocaleString()} pts to Gold Tier` };
-  };
-
-  const tierInfo = getTierProgress(loyaltyPoints);
-  const loyaltyTier = customer?.loyalty_tier || tierInfo.tier;
-  const totalVisits = customer?.total_visits ?? user.totalVisits ?? 0;
-
-  // Merge DB reservations with user prop reservations
-  const allReservations: ReservationRow[] = [...reservations];
-  if (user.reservations) {
-    const existingIds = new Set(reservations.map(r => r.id));
-    user.reservations.forEach(ur => {
-      if (!existingIds.has(ur.id)) {
-        allReservations.push({
-          id: ur.id,
-          booking_code: ur.bookingCode,
-          outlet: ur.outlet,
-          reservation_date: ur.date,
-          time_slot: ur.timeSlot,
-          guests: ur.guests,
-          status: ur.status,
-          booked_at: ur.bookedAt,
-          special_occasion: null,
-          dietary_prefs: null,
+      if (onUpdateUser) {
+        onUpdateUser({
+          ...user,
+          rewardPoints: newPoints,
+          totalVisits: newVisits,
+          transactions: updatedTx,
         });
       }
-    });
-  }
+    } catch {}
 
-  const upcomingRes = allReservations.filter(r => {
-    const st = (r.status || '').toLowerCase();
-    return st === 'confirmed' || st === 'pending';
-  });
-  const feedbackedOutlets = new Set(feedbackHistory.map(fb => fb.outlet).filter(Boolean));
-  const availableOutlets = outlets.filter(o => !feedbackedOutlets.has(o.name));
+    showToast(
+      'Patron Relations Confirmed',
+      `Thank you for your feedback, ${patron.name}. +${bonusAwarded} Mayflower Stars awarded.`
+    );
+  };
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const firstName = user.name?.split(' ')[0] || 'Guest';
+  // Handle updating patron preferences
+  const handleUpdatePatron = async (updated: Partial<PatronProfile>) => {
+    setPatron((prev) => ({ ...prev, ...updated }));
 
+    try {
+      await supabase
+        .from('customers')
+        .update({
+          dietary_preferences: updated.dietaryPreferences,
+          preferred_seating: updated.preferredSeating,
+        })
+        .eq('user_id', user.id);
+    } catch {}
+
+    showToast('Preferences Saved', 'Your dining and seating preferences have been noted for upcoming visits.');
+  };
+
+  // IF USER IS MAKING A RESERVATION: RENDER OLDER DASHBOARD RESERVATION SYSTEM (PlanYourVisit)
   if (showReservationWizard) {
     return (
       <div className="bg-[#FAF7F2] min-h-screen text-[#1A1A1A]">
         <PlanYourVisit
-          initialOutlet="Poes Garden"
+          initialOutlet={targetOutlet}
           currentUser={user}
-          onUpdateUser={onUpdateUser}
+          onUpdateUser={(updated) => {
+            onUpdateUser?.(updated);
+          }}
           onRequestSignIn={() => {}}
-          onBackToWebsite={() => { setShowReservationWizard(false); fetchAll(); }}
+          onBackToWebsite={() => {
+            setShowReservationWizard(false);
+            fetchAll();
+          }}
         />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-[#1A1A1A] font-sans selection:bg-[#C5A880] selection:text-black">
-      {/* Main Container */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-6 pb-24">
+    <div className="bg-[#FAF7F2] text-stone-800 font-sans min-h-screen flex flex-col antialiased selection:bg-[#C5A880]/25 selection:text-[#081C15]">
+      {/* Main Content */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-7 sm:py-9 space-y-7 sm:space-y-9">
+        {/* Patron Membership Card */}
+        <PatronCard
+          patron={patron}
+          onOpenRewards={() => setIsRewardsOpen(true)}
+          onOpenProfile={() => setIsProfileOpen(true)}
+        />
 
-        {loading ? (
-          <div className="flex items-center justify-center py-32">
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-2 border-[#1E3932] border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-xs text-[#1E3932] uppercase tracking-[0.2em] font-serif">Loading Mayflower Guest Portal...</span>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* ── Compact Horizontal Rectangular Banner ── */}
-            <section className="bg-gradient-to-r from-[#02150c] via-[#152a20] to-[#02150c] border border-[#C5A880]/40 rounded-2xl p-5 sm:p-7 shadow-xl mb-8 text-white relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-[#C5A880]/10 rounded-full blur-3xl pointer-events-none"></div>
+        {/* Quick Actions Grid */}
+        <QuickActions
+          onOpenReserve={() => handleOpenReserve()}
+          onOpenFeedback={() => setIsFeedbackOpen(true)}
+        />
 
-              {/* Left Side: Monogram, Greeting & Status */}
-              <div className="flex items-center gap-4 text-left">
-                <div className="w-12 h-12 rounded-full border border-[#C5A880] bg-[#02150c] text-[#C5A880] flex items-center justify-center font-serif text-xl font-bold shrink-0 shadow-[0_0_15px_rgba(197,168,128,0.25)]">
-                  M
-                </div>
-                <div>
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <h1 className="font-serif text-xl sm:text-2xl text-[#FAF7F2] font-bold tracking-tight">
-                      {greeting}, {firstName}
-                    </h1>
-                    <span className="px-2.5 py-0.5 bg-[#152a20] text-[#C5A880] border border-[#C5A880]/40 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                      {loyaltyTier} Member
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#C5A880]/90 mt-1 font-sans">
-                    Mayflower Patron since {user.joinedDate || '2026'} · {totalVisits} Visit{totalVisits !== 1 ? 's' : ''}
-                  </p>
-                </div>
-              </div>
+        {/* Upcoming Reservations */}
+        <UpcomingReservations
+          reservations={reservations}
+          onModify={handleModifyReservation}
+          onCancel={(res) => setCancelingReservation(res)}
+          onNewReservation={() => handleOpenReserve()}
+        />
 
-              {/* Right Side: Compact Rectangular Stars Counter & Progress */}
-              <div className="bg-[#02150c]/90 border border-[#C5A880]/40 rounded-xl p-3.5 px-5 flex items-center gap-5 shrink-0 shadow-lg w-full md:w-auto justify-between md:justify-start">
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5 text-[#C5A880]">
-                    <span className="text-2xl sm:text-3xl font-bold font-serif leading-none drop-shadow-sm">
-                      {loyaltyPoints.toLocaleString()}
-                    </span>
-                    <Star className="w-4 h-4 text-[#C5A880] fill-[#C5A880]" />
-                  </div>
-                  <span className="text-[9px] text-[#D1CDBC] uppercase tracking-[0.2em] font-semibold mt-0.5">Mayflower Stars</span>
-                </div>
+        {/* Atmosphere Showcase */}
+        <ExperienceShowcase onExploreVenues={() => setIsVenuesOpen(true)} />
 
-                <div className="w-36 sm:w-44 flex flex-col justify-center">
-                  <div className="flex justify-between text-[10px] text-[#D1CDBC] mb-1 font-medium">
-                    <span className="font-serif text-[#C5A880]">{loyaltyTier}</span>
-                    <span className="text-gray-300 text-[9px] truncate max-w-[100px]">{tierInfo.statusText}</span>
-                  </div>
-                  <div className="h-2 bg-[#152a20] rounded-full overflow-hidden border border-[#C5A880]/30">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#C5A880] via-[#E5C396] to-[#C5A880] rounded-full transition-all duration-1000 ease-out"
-                      style={{ width: `${tierInfo.progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* ── Quick Action Cards (High Contrast White Cards) ── */}
-            <section className="grid grid-cols-2 gap-4 mb-10">
-              <button
-                onClick={() => setShowReservationWizard(true)}
-                className="flex flex-col items-center gap-3 p-6 bg-white border border-[#E5E0D8] hover:border-[#C5A880] rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
-              >
-                <div className="w-12 h-12 rounded-full bg-[#1E3932] text-[#C5A880] flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
-                  <Utensils className="w-6 h-6" />
-                </div>
-                <span className="text-xs font-serif font-bold text-[#1E3932] uppercase tracking-wider">Reserve</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  const opts = availableOutlets.length > 0 ? availableOutlets : (outlets.length > 0 ? outlets : DEFAULT_OUTLETS);
-                  setIsFeedbackOpen(true);
-                  setFbOutlet(opts[0]?.name ?? 'Poes Garden');
-                }}
-                className="flex flex-col items-center gap-3 p-6 bg-white border border-[#E5E0D8] hover:border-[#C5A880] rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group"
-              >
-                <div className="w-12 h-12 rounded-full bg-[#1E3932] text-[#C5A880] flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
-                  <Star className="w-6 h-6" />
-                </div>
-                <span className="text-xs font-serif font-bold text-[#1E3932] uppercase tracking-wider">Feedback</span>
-              </button>
-            </section>
-
-            {/* ── Upcoming Reservations ── */}
-            <section className="mb-10">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#1E3932] animate-pulse"></span>
-                <h2 className="font-serif text-2xl text-[#1E3932] font-bold tracking-tight">Upcoming Reservations</h2>
-              </div>
-
-              {upcomingRes.length === 0 ? (
-                <div className="bg-white border border-[#E5E0D8] rounded-2xl p-8 text-center shadow-sm">
-                  <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-600">No upcoming reservations scheduled.</p>
-                  <button onClick={() => setShowReservationWizard(true)} className="mt-4 text-xs font-bold text-[#1E3932] hover:text-[#C5A880] uppercase tracking-widest inline-flex items-center gap-1 cursor-pointer">
-                    Book a Table Now <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {upcomingRes.map(r => (
-                    <div key={r.id} className="bg-white border border-[#E5E0D8] hover:border-[#C5A880] rounded-2xl p-6 shadow-sm hover:shadow-md transition-all">
-                      {modifyingId === r.id ? (
-                        <div className="flex flex-col gap-4">
-                          <span className="text-xs font-bold text-[#1E3932] uppercase tracking-wider">Modify Reservation Details</span>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="flex flex-col gap-1">
-                              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Date</label>
-                              <input type="date" value={modifyDate} min={new Date().toISOString().split('T')[0]} onChange={e => setModifyDate(e.target.value)}
-                                className="h-10 bg-[#FAF7F2] text-[#1E3932] px-3 rounded-lg border border-[#E5E0D8] focus:outline-none focus:border-[#1E3932] text-xs" />
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Time Slot</label>
-                              <select value={modifySlot} onChange={e => setModifySlot(e.target.value)}
-                                className="h-10 bg-[#FAF7F2] text-[#1E3932] px-3 rounded-lg border border-[#E5E0D8] focus:outline-none focus:border-[#1E3932] text-xs cursor-pointer">
-                                <option value="1:00 PM">Lunch – 1:00 PM</option>
-                                <option value="7:30 PM">Dinner – 7:30 PM</option>
-                                <option value="8:00 PM">Dinner – 8:00 PM</option>
-                              </select>
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Guests</label>
-                              <select value={modifyGuests} onChange={e => setModifyGuests(e.target.value)}
-                                className="h-10 bg-[#FAF7F2] text-[#1E3932] px-3 rounded-lg border border-[#E5E0D8] focus:outline-none focus:border-[#1E3932] text-xs cursor-pointer">
-                                {[1,2,3,4,5,6,7,8,10].map(n => <option key={n} value={String(n)}>{n} Guests</option>)}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 pt-2">
-                            <button onClick={() => handleModifySave(r.id)} className="px-4 py-2 bg-[#1E3932] text-white font-bold rounded-lg text-xs uppercase tracking-wider cursor-pointer hover:bg-[#2A4C43] transition-colors">Save Changes</button>
-                            <button onClick={() => setModifyingId(null)} className="px-4 py-2 text-gray-500 hover:text-black text-xs font-bold uppercase tracking-wider cursor-pointer">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-3">
-                              <span className="px-3 py-0.5 bg-[#1E3932] text-[#C5A880] text-[10px] font-bold uppercase tracking-wider rounded-full">
-                                {r.status}
-                              </span>
-                              {r.booking_code && <span className="text-xs text-gray-400 font-mono">Ref: #{r.booking_code}</span>}
-                            </div>
-                            <h3 className="font-serif text-xl font-bold text-[#1E3932]">{r.outlet || 'The Mayflower, Chennai'}</h3>
-                            <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-                              <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-[#1E3932]" /> {r.reservation_date || '—'}</span>
-                              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[#1E3932]" /> {r.time_slot || '—'}</span>
-                              <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-[#1E3932]" /> {r.guests || '—'} Guests</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => { setModifyingId(r.id); setModifyDate(r.reservation_date || ''); setModifySlot(r.time_slot || '7:30 PM'); setModifyGuests(String(r.guests || 2)); }}
-                              className="px-3 py-1.5 bg-[#FAF7F2] text-[#1E3932] border border-[#E5E0D8] rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-[#1E3932] hover:text-[#C5A880] cursor-pointer transition-colors"
-                            >
-                              Modify
-                            </button>
-                            <button
-                              onClick={() => handleCancel(r.id)}
-                              className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-100 cursor-pointer transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* ── My Reviews ── */}
-            <section className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-serif text-2xl text-[#1E3932] font-bold tracking-tight">My Reviews</h2>
-                {availableOutlets.length > 0 && (
-                  <button
-                    onClick={() => { setIsFeedbackOpen(true); setFbOutlet(availableOutlets[0]?.name ?? ''); }}
-                    className="px-3 py-1.5 bg-[#1E3932] text-[#C5A880] font-bold rounded-lg text-xs uppercase tracking-wider hover:bg-[#2A4C43] cursor-pointer transition-colors"
-                  >
-                    + New Review
-                  </button>
-                )}
-              </div>
-              {feedbackHistory.length === 0 ? (
-                <div className="bg-white border border-[#E5E0D8] rounded-2xl p-8 text-center shadow-sm">
-                  <MessageSquare className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm text-gray-600">No dining reviews submitted yet.</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {feedbackHistory.map(fb => (
-                    <div key={fb.id} className="bg-white border border-[#E5E0D8] rounded-2xl p-5 shadow-sm">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-serif font-bold text-[#1E3932]">{fb.outlet || 'Mayflower Outlet'}</span>
-                        <div className="flex items-center gap-1">
-                          {[1,2,3,4,5].map(s => (
-                            <Star key={s} className={`w-4 h-4 ${s <= (fb.rating || 0) ? 'text-[#C5A880] fill-[#C5A880]' : 'text-gray-300'}`} />
-                          ))}
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-700 leading-relaxed font-sans">{fb.comment}</p>
-                      <span className="text-[10px] text-gray-400 mt-2 block">
-                        {fb.visit_date ? `Visit: ${fb.visit_date} · ` : ''}{fb.created_at ? new Date(fb.created_at).toLocaleDateString() : ''}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </>
-        )}
+        {/* My Reviews */}
+        <ReviewsSection
+          reviews={reviews}
+          onOpenNewReview={() => setIsFeedbackOpen(true)}
+        />
       </main>
 
-      {/* ── Feedback Modal ── */}
-      {isFeedbackOpen && (
-        <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5 relative text-[#1A1A1A]">
-            <button onClick={() => setIsFeedbackOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-black cursor-pointer">
-              ✕
-            </button>
-            <div>
-              <span className="text-[10px] font-bold text-[#1E3932] uppercase tracking-[0.2em]">Share Your Experience</span>
-              <h3 className="font-serif text-2xl text-[#1E3932] font-bold mt-1">Submit Dining Review</h3>
-              <p className="text-xs text-gray-500 mt-1">Earn +{FEEDBACK_BONUS} Mayflower Stars for your review</p>
-            </div>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-[#1E3932] uppercase tracking-wider">Select Outlet</label>
-                <select value={fbOutlet} onChange={e => setFbOutlet(e.target.value)}
-                  className="w-full h-11 bg-[#FAF7F2] text-[#1E3932] px-4 rounded-lg border border-[#E5E0D8] focus:outline-none focus:border-[#1E3932] text-sm cursor-pointer">
-                  {(availableOutlets.length > 0 ? availableOutlets : (outlets.length > 0 ? outlets : DEFAULT_OUTLETS)).map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-[#1E3932] uppercase tracking-wider">Rating</label>
-                <div className="flex items-center gap-2 cursor-pointer">
-                  {[1,2,3,4,5].map(star => (
-                    <Star key={star} onClick={() => setFbRating(star)}
-                      className={`w-7 h-7 transition-colors ${star <= fbRating ? 'text-[#C5A880] fill-[#C5A880]' : 'text-gray-300 hover:text-[#C5A880]'}`} />
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-[#1E3932] uppercase tracking-wider">Your Feedback</label>
-                <textarea rows={3} value={fbComment} onChange={e => setFbComment(e.target.value)}
-                  placeholder="Share details about food quality, ambiance, and service..."
-                  className="w-full bg-[#FAF7F2] text-[#1E3932] p-3 rounded-lg border border-[#E5E0D8] focus:outline-none focus:border-[#1E3932] text-sm resize-none" />
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button onClick={() => setIsFeedbackOpen(false)} className="px-4 py-2.5 text-gray-500 hover:text-black text-xs font-bold uppercase tracking-wider cursor-pointer">Cancel</button>
-              <button onClick={handleSubmitFeedback} disabled={submittingFb}
-                className="px-6 py-2.5 bg-[#1E3932] text-[#C5A880] font-bold rounded-lg text-xs uppercase tracking-wider hover:bg-[#2A4C43] shadow-md cursor-pointer disabled:opacity-50 transition-colors">
-                {submittingFb ? 'Submitting...' : 'Submit & Earn Stars'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Toast ── */}
-      {toast.show && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[10001] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-2 text-sm font-semibold ${toast.error ? 'bg-red-700 text-white' : 'bg-[#1E3932] text-[#C5A880]'}`}>
-          {toast.error ? <AlertCircle className="w-5 h-5 text-white" /> : <CheckCircle className="w-5 h-5 text-[#C5A880]" />}
-          <span>{toast.message}</span>
-        </div>
-      )}
-
-      {/* ── Luxury Footer ── */}
-      <footer className="bg-white border-t border-[#E5E0D8] py-8">
-        <div className="max-w-4xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-gray-500">
-          <span className="font-serif text-base text-[#1E3932] font-semibold">Mayflower Sanctuaries</span>
-          <span>© {new Date().getFullYear()} Mayflower Hospitality Group India LLP</span>
+      {/* Luxury Heritage Footer */}
+      <footer className="border-t border-[#E8E2D5] bg-[#FAF7F2] py-6 text-center text-xs text-stone-500">
+        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <p className="font-serif italic text-stone-600">
+            The MayFlower Salons &amp; Private Dining · British Heritage Fine Dining
+          </p>
+          <p className="text-[11px] text-stone-400">
+            Concierge Desk: reservations@mayflower-heritage.com · +91 44 2811 4000
+          </p>
         </div>
       </footer>
+
+      {/* Modals */}
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        patron={patron}
+        onSubmit={handleSubmitFeedback}
+      />
+
+      <VenuesModal
+        isOpen={isVenuesOpen}
+        onClose={() => setIsVenuesOpen(false)}
+        venues={venues}
+        onSelectVenueToReserve={(venueName) => {
+          setIsVenuesOpen(false);
+          handleOpenReserve(venueName);
+        }}
+      />
+
+      <RewardsModal
+        isOpen={isRewardsOpen}
+        onClose={() => setIsRewardsOpen(false)}
+        patron={patron}
+      />
+
+      <PatronProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        patron={patron}
+        onUpdatePatron={handleUpdatePatron}
+      />
+
+      <CancelModal
+        isOpen={!!cancelingReservation}
+        onClose={() => setCancelingReservation(null)}
+        reservation={cancelingReservation}
+        onConfirmCancel={handleConfirmCancel}
+      />
+
+      <ModifyReservationModal
+        isOpen={!!modifyingReservation}
+        onClose={() => setModifyingReservation(null)}
+        reservation={modifyingReservation}
+        onSaveModifiedReservation={handleSaveModifiedReservation}
+      />
+
+      {/* Confirmation Toast */}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 };

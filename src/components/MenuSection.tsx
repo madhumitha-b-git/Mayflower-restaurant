@@ -6,9 +6,10 @@ import { Sparkles, Coffee, Leaf, Utensils, ChevronDown, ChevronUp, FileText, Ext
 interface MenuSectionProps {
   onPlanVisit: () => void;
   onRequestCellar: () => void;
+  canReserveTable?: boolean;
 }
 
-export const MenuSection: React.FC<MenuSectionProps> = ({ onPlanVisit, onRequestCellar }) => {
+export const MenuSection: React.FC<MenuSectionProps> = ({ onPlanVisit, onRequestCellar, canReserveTable = true }) => {
   const [selectedCategory, setSelectedCategory] = useState<MenuCategoryType>('all');
   const [dietaryFilter, setDietaryFilter] = useState<'all' | 'veg' | 'non-veg' | 'chef'>('all');
   const [showAllDishes, setShowAllDishes] = useState<boolean>(false);
@@ -286,13 +287,15 @@ export const MenuSection: React.FC<MenuSectionProps> = ({ onPlanVisit, onRequest
             >
               View Drinks & Desserts
             </button>
-            <button
-              onClick={onPlanVisit}
-              id="btn-reserve-table-menu-banner"
-              className="px-7 py-3.5 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-colors shadow-md cursor-pointer"
-            >
-              Reserve a Table
-            </button>
+            {canReserveTable && (
+              <button
+                onClick={onPlanVisit}
+                id="btn-reserve-table-menu-banner"
+                className="px-7 py-3.5 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-colors shadow-md cursor-pointer"
+              >
+                Reserve a Table
+              </button>
+            )}
           </div>
         </div>
 

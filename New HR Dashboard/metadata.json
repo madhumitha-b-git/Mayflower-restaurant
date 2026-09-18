@@ -1,0 +1,6 @@
+{
+  "name": "Staff Directory & Shift Management",
+  "description": "Luxury hospitality and salon staff directory, duty tracking, outlet shift rosters, and leave request management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Playfair Display", "Cormorant Garamond", Georgia, serif;
+  --font-cormorant: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Montserrat", system-ui, -apple-system, sans-serif;
+
+  --color-parchment: #FAF7F2;
+  --color-parchment-dark: #F4EFE6;
+  --color-emerald-noir: #081C15;
+  --color-emerald-deep: #0D2818;
+  --color-emerald-border: #1A3E2A;
+  --color-gold-foil: #C5A880;
+  --color-gold-light: #DFC993;
+  --color-gold-dark: #997E46;
+  --color-gold-accent: #D4AF37;
+}
+
+.font-serif-luxury {
+  font-family: 'Playfair Display', serif;
+  letter-spacing: -0.01em;
+}
+
+.font-cormorant-luxury {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.card-hover-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-hover-transition:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px rgba(13, 40, 24, 0.08);
+  border-color: rgba(197, 168, 128, 0.6);
+}

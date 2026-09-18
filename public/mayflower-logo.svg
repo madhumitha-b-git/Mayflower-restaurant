@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&amp;display=swap');
+      .brand-m {
+        font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+        font-size: 112px;
+        font-weight: 700;
+        fill: #2D4030;
+        text-anchor: middle;
+        dominant-baseline: central;
+      }
+    </style>
+    <filter id="soft-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#2D4030" flood-opacity="0.08" />
+    </filter>
+  </defs>
+
+  <!-- Background Badge -->
+  <rect x="10" y="10" width="180" height="180" rx="44" fill="#FAF7F2" stroke="#2D4030" stroke-width="4" stroke-opacity="0.35" filter="url(#soft-shadow)" />
+
+  <!-- Botanical Leaf / Flourish Motif -->
+  <path
+    d="M100 32 C108 52 128 60 140 52 C128 74 108 78 100 66 C92 78 72 74 60 52 C72 60 92 52 100 32 Z"
+    fill="#2D4030"
+    opacity="0.18"
+  />
+
+  <!-- Letter M Monogram -->
+  <text x="100" y="120" class="brand-m">M</text>
+</svg>

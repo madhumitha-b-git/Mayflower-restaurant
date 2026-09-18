@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Receipt,
   FileSpreadsheet,
@@ -13,15 +13,64 @@ import {
   UtensilsCrossed,
   Wine,
 } from 'lucide-react';
-import { CustomerProfile } from '../types';
+import { CustomerProfile, UserProfile } from '../types';
 import { INITIAL_CUSTOMERS } from '../data/mockData';
+import { fetchAllCustomers } from '../lib/adminService';
 
-export const CustomersView: React.FC = () => {
-  const [customers] = useState<CustomerProfile[]>(INITIAL_CUSTOMERS);
+interface CustomersViewProps {
+  user?: UserProfile;
+}
+
+export const CustomersView: React.FC<CustomersViewProps> = ({ user }) => {
+  const [customers, setCustomers] = useState<CustomerProfile[]>(INITIAL_CUSTOMERS);
   const [searchQuery, setSearchQuery] = useState('');
   const [tierFilter, setTierFilter] = useState<'ALL' | 'GREEN' | 'GOLD' | 'BLACK'>('ALL');
   const [sortBy, setSortBy] = useState<'date' | 'spend' | 'visits'>('date');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerProfile | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadCustomers = async () => {
+      try {
+        const rows = await fetchAllCustomers();
+        if (!isActive) return;
+
+        const mapped = rows.length
+          ? rows.map((row: any) => ({
+              id: row.id,
+              guestId: row.id?.slice(0, 8).toUpperCase() || 'GUEST',
+              name: row.name || row.email?.split('@')[0] || 'Customer',
+              email: row.email,
+              phone: row.phone || '+91 00000 00000',
+              tier: ((row.tier || 'GREEN').toUpperCase().includes('GOLD') ? 'GOLD' : (row.tier || 'GREEN').toUpperCase().includes('BLACK') ? 'BLACK' : 'GREEN') as CustomerProfile['tier'],
+              tierLabel: (row.tier || 'GREEN').toUpperCase(),
+              points: Number(row.reward_points ?? row.loyalty_points ?? 0),
+              visits: Number(row.total_visits ?? row.total_reservations ?? 0),
+              bookings: Number(row.total_reservations ?? row.reservations?.length ?? 0),
+              totalSpend: Number(row.total_spent ?? 0),
+              avgSpend: Number(row.average_spend ?? 0),
+              lastVisit: row.last_visit_date || row.joined_date || 'Not available',
+              joinedDate: row.joined_date || 'Not available',
+              initials: (row.name || row.email || 'C').split(' ').map((part: string) => part[0]).slice(0, 2).join('').toUpperCase() || 'C',
+            })) as CustomerProfile[]
+          : INITIAL_CUSTOMERS;
+
+        setCustomers(mapped);
+      } catch {
+        if (isActive) setCustomers(INITIAL_CUSTOMERS);
+      }
+    };
+
+    loadCustomers();
+    return () => {
+      isActive = false;
+    };
+  }, [user]);
+
+  const totalSpend = customers.reduce((sum, customer) => sum + (customer.totalSpend || 0), 0);
+  const averageYield = customers.length ? Math.round(totalSpend / customers.length) : 0;
+  const totalRewardPoints = customers.reduce((sum, customer) => sum + (customer.points || 0), 0);
 
   const filteredCustomers = customers
     .filter((cust) => {
@@ -57,7 +106,7 @@ export const CustomersView: React.FC = () => {
               TOTAL PATRON SPEND
             </p>
             <h3 className="text-2xl font-serif font-semibold text-[#182420] mt-0.5">
-              ₹82,000
+              ₹{totalSpend.toLocaleString('en-IN')}
             </h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-medium mt-1">
               • Verified POS Transactions
@@ -75,10 +124,10 @@ export const CustomersView: React.FC = () => {
               AVERAGE TABLE YIELD
             </p>
             <h3 className="text-2xl font-serif font-semibold text-[#182420] mt-0.5">
-              ₹4,555
+              ₹{averageYield.toLocaleString('en-IN')}
             </h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500 font-medium mt-1">
-              Across 18 Total Covers
+              Across {customers.length || 18} Total Profiles
             </span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-[#EFF4F1] text-[#2E5443] flex items-center justify-center">
@@ -93,7 +142,7 @@ export const CustomersView: React.FC = () => {
               ACCUMULATED REWARD PTS
             </p>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <h3 className="text-2xl font-serif font-semibold text-[#182420]">2,300</h3>
+              <h3 className="text-2xl font-serif font-semibold text-[#182420]">{totalRewardPoints.toLocaleString('en-IN')}</h3>
               <span className="text-xs font-mono text-zinc-500">pts</span>
             </div>
             <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500 font-medium mt-1">
@@ -112,11 +161,11 @@ export const CustomersView: React.FC = () => {
               AUDITED REGISTRY NODE
             </p>
             <h3 className="text-lg font-serif font-semibold text-[#182420] mt-1">
-              Chennai Enclaves
+              {customers.length ? `${customers.length} Profiles` : 'Chennai Enclaves'}
             </h3>
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 font-mono mt-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Poes Garden &amp; ECR Live
+              {customers.length ? 'Live loyalty ledger' : 'Poes Garden & ECR Live'}
             </span>
           </div>
           <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
