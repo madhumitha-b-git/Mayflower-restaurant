@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Flame, Clock, CheckCircle2, RefreshCw,
-  Printer, ShieldAlert, X, Sparkles
+  Printer, ShieldAlert, X, Sparkles, Camera, Image as ImageIcon
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { getDataProvider } from '../../data/DataProvider';
 import { useTasks } from '../../hooks/useAppData';
+import { EvidenceUploadModal } from './shared/EvidenceUploadModal';
 
 interface Props {
   user: UserProfile;
@@ -135,6 +136,10 @@ export const ChefDashboard: React.FC<Props> = ({ user }) => {
   const [eightySixItem, setEightySixItem] = useState('Ooty Wild Morel Mushrooms');
   const [eightySixReason, setEightySixReason] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [selectedTaskTitle, setSelectedTaskTitle] = useState('');
 
   const { data: kitchenTasks, refetch: refetchTasks } = useTasks(user);
   const [tickets, setTickets] = useState<KDSTicket[]>(INITIAL_TICKETS);
@@ -400,16 +405,36 @@ export const ChefDashboard: React.FC<Props> = ({ user }) => {
                     <h4 className="font-bold text-xs text-[#02150c] mt-0.5">{task.title}</h4>
                     <p className="text-[11px] text-[#6b7280] mt-1">Due: {task.dueAt}</p>
                   </div>
-                  <button
-                    onClick={() => handleToggleTaskStatus(task.id, task.status)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                      task.status === 'Completed'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-[#02150c] text-[#C5A880] border-[#02150c]'
-                    }`}
-                  >
-                    {task.status === 'Completed' ? '✓ Done' : 'Complete'}
-                  </button>
+                  <div className="flex flex-col gap-2 items-end">
+                    <button
+                      onClick={() => handleToggleTaskStatus(task.id, task.status)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer w-full text-center ${
+                        task.status === 'Completed'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-[#02150c] text-[#C5A880] border-[#02150c]'
+                      }`}
+                    >
+                      {task.status === 'Completed' ? '✓ Done' : 'Complete'}
+                    </button>
+                    {task.status !== 'Completed' ? (
+                      <button
+                        onClick={() => {
+                          setSelectedTaskId(task.id);
+                          setSelectedTaskTitle(task.title);
+                          setEvidenceModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 flex items-center justify-center space-x-1 rounded-lg text-[10px] font-bold border border-[#e4e2de] bg-white text-[#424844] hover:bg-[#f5f3ef] transition cursor-pointer w-full"
+                      >
+                        <Camera className="w-3 h-3" />
+                        <span>Upload</span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center space-x-1 text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded border border-gray-200">
+                        <ImageIcon className="w-3 h-3" />
+                        <span>Evidence</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (
@@ -487,6 +512,18 @@ export const ChefDashboard: React.FC<Props> = ({ user }) => {
           </div>
         </div>
       )}
+
+      <EvidenceUploadModal
+        isOpen={evidenceModalOpen}
+        onClose={() => setEvidenceModalOpen(false)}
+        taskId={selectedTaskId}
+        taskTitle={selectedTaskTitle}
+        user={user}
+        onEvidenceUploaded={() => {
+          showToast(`Evidence uploaded for ${selectedTaskTitle}`);
+          refetchTasks();
+        }}
+      />
     </div>
   );
 };

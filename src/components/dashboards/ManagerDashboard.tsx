@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabaseClient';
 import { UserProfile } from '../../types';
+import { useTasks } from '../../hooks/useAppData';
+import { getDataProvider } from '../../data/DataProvider';
+import {
+  Check, X, MapPin, RefreshCw, UserPlus, ChevronDown,
+  Clock, Users, Utensils, AlertTriangle, CheckCircle2,
+  Circle, Flame, Wine, Flower2
+} from 'lucide-react';
 
 interface Props {
   user: UserProfile;
@@ -13,13 +19,12 @@ interface ReservationItem {
   ref: string;
   guestName: string;
   badge?: string;
-  badgeBg?: string;
+  badgeColor?: string;
   guests: number;
   time: string;
   area: string;
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled';
   statusLabel: string;
-  statusBg: string;
   table?: string;
   pref?: string;
   tags?: string[];
@@ -27,983 +32,783 @@ interface ReservationItem {
   note?: string;
 }
 
-export const ManagerDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }) => {
+const MOCK_RESERVATIONS: ReservationItem[] = [
+  {
+    id: 'res-1', ref: '#MF-7729', guestName: 'Dr. Kalanithi Maran',
+    badge: 'VIP Patron', badgeColor: 'bg-amber-100 text-amber-800',
+    guests: 4, time: 'Today, 1:15 PM', area: 'Poes Conservatory Bay',
+    status: 'pending', statusLabel: 'Pending Approval',
+    table: 'Unassigned', pref: 'Prefers Quiet Alcove',
+    tags: ['No Shellfish', 'Vintage Champagne Pairing', 'Anniversary Protocol'],
+  },
+  {
+    id: 'res-2', ref: '#MF-8103', guestName: 'Ananya & Siddharth Rao',
+    badge: 'Online Booking', badgeColor: 'bg-stone-100 text-stone-600',
+    guests: 2, time: 'Today, 1:30 PM', area: 'Verandah Garden',
+    status: 'confirmed', statusLabel: 'Confirmed',
+    table: 'Table V2', pref: 'Locked by Captain Vignesh',
+    tags: ['Vegetarian Degustation', 'No Alliums (Jain)'],
+  },
+  {
+    id: 'res-3', ref: '#MF-6691', guestName: 'Sundaram Estate Group',
+    badge: 'Corporate Host', badgeColor: 'bg-emerald-100 text-emerald-800',
+    guests: 6, time: 'Seated 12:28 PM (44m)', area: 'Table G3 — Glasshouse',
+    status: 'seated', statusLabel: 'Seated · Active',
+    table: 'Course 3 of 7', pref: 'KOT #4029',
+    courseInfo: 'Pan-seared Bay of Bengal Black Bass, Curry Leaf Emulsion',
+  },
+  {
+    id: 'res-4', ref: '#MF-8114', guestName: 'Meera Chandran',
+    badge: 'Club 100', badgeColor: 'bg-violet-100 text-violet-800',
+    guests: 2, time: 'Today, 2:00 PM', area: 'Conservatory Window',
+    status: 'confirmed', statusLabel: 'Confirmed',
+    table: 'Table C1', pref: 'Bespoke Floral Placed',
+    note: 'Birthday celebration; prefers chilled sparkling water on arrival',
+  },
+];
+
+const STATUS_STYLES: Record<string, string> = {
+  pending:   'bg-amber-50 text-amber-800 border border-amber-200',
+  confirmed: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
+  seated:    'bg-[#1E3932]/10 text-[#1E3932] border border-[#1E3932]/20',
+  completed: 'bg-stone-100 text-stone-600 border border-stone-200',
+  cancelled: 'bg-rose-50 text-rose-700 border border-rose-200',
+};
+
+type QueueTab = 'all' | 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'evidence';
+
+export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, onSwitchRole }) => {
   const [selectedSanctuary, setSelectedSanctuary] = useState('poes');
-  const [activeQueueTab, setActiveQueueTab] = useState<'all' | 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled'>('all');
-  
-  // Modals & Toast State
-  const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
+  const [activeQueueTab, setActiveQueueTab] = useState<QueueTab>('all');
+  const [reservations, setReservations] = useState<ReservationItem[]>(MOCK_RESERVATIONS);
+  const [inspectTable, setInspectTable] = useState<string | null>(null);
+  const [isWalkinOpen, setIsWalkinOpen] = useState(false);
   const [walkinName, setWalkinName] = useState('');
   const [walkinSize, setWalkinSize] = useState('2 Guests');
   const [walkinZone, setWalkinZone] = useState('The Conservatory (Table C3)');
   const [walkinNotes, setWalkinNotes] = useState('');
-
-  const [inspectTableInfo, setInspectTableInfo] = useState<string | null>(null);
-
-  const [toast, setToast] = useState<{ show: boolean; message: string }>({
-    show: false,
-    message: '',
-  });
-
   const [isSyncing, setIsSyncing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [taskEvidence, setTaskEvidence] = useState<Record<string, any[]>>({});
 
-  // Reservation pipeline data state
-  const [reservations, setReservations] = useState<ReservationItem[]>([
-    {
-      id: 'res-1',
-      ref: '#MF-7729',
-      guestName: 'Dr. Kalanithi Maran',
-      badge: 'VIP Patron',
-      badgeBg: 'bg-secondary/15 text-secondary',
-      guests: 4,
-      time: 'Today, 1:15 PM (In 20m)',
-      area: 'Poes Conservatory Bay',
-      status: 'pending',
-      statusLabel: 'Pending Manager Review',
-      statusBg: 'bg-amber-100 text-amber-900',
-      table: 'Table Unassigned',
-      pref: 'Prefers Quiet Alcove',
-      tags: ['No Shellfish', 'Vintage Champagne Pairing', 'Anniversary Protocol'],
-    },
-    {
-      id: 'res-2',
-      ref: '#MF-8103',
-      guestName: 'Ananya & Siddharth Rao',
-      badge: 'Standard Guest',
-      badgeBg: 'bg-surface-container text-on-surface-variant',
-      guests: 2,
-      time: 'Today, 1:30 PM',
-      area: 'Verandah Garden',
-      status: 'confirmed',
-      statusLabel: 'Confirmed',
-      statusBg: 'bg-emerald-100 text-emerald-900',
-      table: 'Table V2',
-      pref: 'Locked by Captain Vignesh',
-      tags: ['Vegetarian Degustation', 'No Alliums (Jain)'],
-    },
-    {
-      id: 'res-3',
-      ref: '#MF-6691',
-      guestName: 'Sundaram Estate Group (Hosted by Rajiv)',
-      badge: 'Corporate Host',
-      badgeBg: 'bg-secondary/15 text-secondary',
-      guests: 6,
-      time: 'Seated 12:28 PM (44m)',
-      area: 'Table G3 (Glasshouse Center)',
-      status: 'seated',
-      statusLabel: 'Seated · Active',
-      statusBg: 'bg-primary-container text-on-primary',
-      table: 'Course 3 of 7 Fired',
-      pref: 'POS KOT #4029',
-      courseInfo: 'Pan-seared Bay of Bengal Black Bass, Curry Leaf Emulsion',
-    },
-    {
-      id: 'res-4',
-      ref: '#MF-8114',
-      guestName: 'Meera Chandran',
-      badge: 'Club 100',
-      badgeBg: 'bg-secondary/15 text-secondary',
-      guests: 2,
-      time: 'Today, 2:00 PM',
-      area: 'Conservatory Window',
-      status: 'confirmed',
-      statusLabel: 'Confirmed',
-      statusBg: 'bg-emerald-100 text-emerald-900',
-      table: 'Table C1',
-      pref: 'Bespoke Floral Placed',
-      note: 'Birthday celebration; prefers chilled sparkling water on arrival',
-    },
-  ]);
+  const { data: kitchenTasks, refetch: refetchTasks } = useTasks(user);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  };
 
   useEffect(() => {
     const fetchLive = async () => {
       try {
-        const { data } = await supabase
-          .from('reservations')
-          .select('id, booking_code, guests, reservation_date, time_slot, status, special_occasion, dietary_prefs, customer_id, outlets(name)')
-          .order('reservation_date', { ascending: false });
-
+        const data = await getDataProvider().getReservations(user);
         if (data && data.length > 0) {
-          const liveItems: ReservationItem[] = data.map((r: any, idx: number) => ({
-            id: r.id || `live-${idx}`,
-            ref: `#${r.booking_code || 'MF-LIVE'}`,
-            guestName: `Patron (${r.customer_id ? r.customer_id.slice(0, 6) : `Guest ${idx + 1}`})`,
+          setReservations(data.map((r) => ({
+            id: r.id,
+            ref: `#${r.bookingCode}`,
+            guestName: r.customerName || 'Guest',
             badge: 'Online Booking',
-            badgeBg: 'bg-[#C5A880]/20 text-[#1E3932]',
+            badgeColor: 'bg-stone-100 text-stone-600',
             guests: r.guests || 2,
-            time: `${r.reservation_date || 'Today'}, ${r.time_slot || '7:00 PM'}`,
-            area: r.outlets?.name || r.outlet || 'Poes Conservatory Bay',
-            status: ((r.status || 'confirmed').toLowerCase() as any),
-            statusLabel: (r.status || 'Confirmed').toUpperCase(),
-            statusBg: (r.status || '').toLowerCase() === 'confirmed' ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900',
-            table: 'Table Assigned',
-            tags: r.dietary_prefs ? [r.dietary_prefs] : ['Online Booking'],
-            note: r.special_occasion || undefined
-          }));
-
-          setReservations(prev => {
-            const existingIds = new Set(prev.map(p => p.id));
-            const newItems = liveItems.filter(l => !existingIds.has(l.id));
-            return [...newItems, ...prev];
-          });
+            time: `${r.date}, ${r.timeSlot}`,
+            area: r.outlet,
+            status: r.status.toLowerCase() as any,
+            statusLabel: r.status,
+            table: r.assignedTable ? `Table ${r.assignedTable}` : 'Unassigned',
+            tags: r.specialRequests ? [r.specialRequests] : [],
+          })));
         }
       } catch {}
     };
     fetchLive();
-  }, []);
+  }, [user]);
 
-  const showToast = (msg: string) => {
-    setToast({ show: true, message: msg });
-    setTimeout(() => {
-      setToast((prev) => ({ ...prev, show: false }));
-    }, 3500);
+  useEffect(() => {
+    if (activeQueueTab !== 'evidence' || !kitchenTasks) return;
+    const load = async () => {
+      const provider = getDataProvider();
+      const ev: Record<string, any[]> = {};
+      for (const task of kitchenTasks) {
+        if (task.status === 'Completed' || task.status === 'Escalated') {
+          const e = await provider.getTaskEvidence(user, task.id);
+          if (e?.length) ev[task.id] = e;
+        }
+      }
+      setTaskEvidence(ev);
+    };
+    load();
+  }, [activeQueueTab, kitchenTasks]);
+
+  const handleApprove = async (id: string) => {
+    try {
+      await getDataProvider().assignTable(user, id, 'C4');
+      setReservations(prev => prev.map(r => r.id === id
+        ? { ...r, status: 'confirmed', statusLabel: 'Confirmed', table: 'Table C4' } : r));
+      showToast('Reservation approved & assigned to Table C4.');
+    } catch (e: any) { showToast(e.message); }
   };
 
-  const handleSyncPos = () => {
+  const handleSeat = async (id: string, table: string) => {
+    try {
+      await getDataProvider().updateReservationStatus(user, id, 'Seated');
+      setReservations(prev => prev.map(r => r.id === id
+        ? { ...r, status: 'seated', statusLabel: 'Seated · Active' } : r));
+      showToast(`Guest seated at ${table}.`);
+    } catch (e: any) { showToast(e.message); }
+  };
+
+  const handleComplete = async (id: string) => {
+    try {
+      await getDataProvider().updateReservationStatus(user, id, 'Completed');
+      setReservations(prev => prev.map(r => r.id === id
+        ? { ...r, status: 'completed', statusLabel: 'Completed' } : r));
+      showToast('Service completed. Table flagged for turnover.');
+    } catch (e: any) { showToast(e.message); }
+  };
+
+  const handleNoShow = async (id: string) => {
+    try {
+      await getDataProvider().updateReservationStatus(user, id, 'Cancelled');
+      setReservations(prev => prev.map(r => r.id === id
+        ? { ...r, status: 'cancelled', statusLabel: 'No-Show' } : r));
+      showToast('Marked as No-Show. Table released.');
+    } catch (e: any) { showToast(e.message); }
+  };
+
+  const handleDecline = async (id: string) => {
+    try {
+      await getDataProvider().updateReservationStatus(user, id, 'Cancelled');
+      setReservations(prev => prev.filter(r => r.id !== id));
+      showToast('Reservation declined.');
+    } catch (e: any) { showToast(e.message); }
+  };
+
+  const handleApproveEvidence = async (taskId: string) => {
+    try {
+      await getDataProvider().updateTaskStatus(user, taskId, 'Completed', 'Approved by Manager');
+      showToast('Evidence approved.');
+      refetchTasks();
+    } catch (e: any) { showToast(e.message); }
+  };
+
+  const handleRejectEvidence = async (taskId: string) => {
+    try {
+      await getDataProvider().updateTaskStatus(user, taskId, 'Escalated', 'Evidence rejected by Manager');
+      showToast('Task escalated for review.');
+      refetchTasks();
+    } catch (e: any) { showToast(e.message); }
+  };
+
+  const handleSync = () => {
     setIsSyncing(true);
-    setTimeout(() => {
-      setIsSyncing(false);
-      showToast('Synchronizing Petpooja REST Gateway... 14ms latency OK.');
-    }, 800);
+    setTimeout(() => { setIsSyncing(false); showToast('Data synced successfully.'); }, 900);
   };
 
-  const handleApprove = (id: string, assignedTable: string) => {
-    setReservations((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          return {
-            ...r,
-            status: 'confirmed',
-            statusLabel: 'Confirmed',
-            statusBg: 'bg-emerald-100 text-emerald-900',
-            table: `Table ${assignedTable}`,
-          };
-        }
-        return r;
-      })
-    );
-    showToast(`Reservation Approved & Locked to Table ${assignedTable}. Synced with Petpooja.`);
-  };
-
-  const handleSeatGuest = (id: string, table: string) => {
-    setReservations((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          return {
-            ...r,
-            status: 'seated',
-            statusLabel: 'Seated · Active',
-            statusBg: 'bg-primary-container text-on-primary',
-          };
-        }
-        return r;
-      })
-    );
-    showToast(`Guest seated at ${table}. Opening KOT ledger...`);
-  };
-
-  const handleCompleteService = (id: string) => {
-    setReservations((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          return {
-            ...r,
-            status: 'completed',
-            statusLabel: 'Completed',
-            statusBg: 'bg-surface-container text-primary',
-          };
-        }
-        return r;
-      })
-    );
-    showToast('Service completed. Table flagged for turnover inspection.');
-  };
-
-  const handleNoShow = (id: string) => {
-    setReservations((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          return {
-            ...r,
-            status: 'cancelled',
-            statusLabel: 'No-Show',
-            statusBg: 'bg-rose-100 text-error',
-          };
-        }
-        return r;
-      })
-    );
-    showToast('Booking marked as No-Show. Table released to Walk-in pool.');
-  };
-
-  const handleDecline = (id: string) => {
-    setReservations((prev) => prev.filter((r) => r.id !== id));
-    showToast('Reservation rejected & notification dispatched to concierge.');
-  };
-
-  const handleWalkInSubmit = (e: React.FormEvent) => {
+  const handleWalkin = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsWalkinModalOpen(false);
-    showToast(`Walk-in for ${walkinName || 'Guest'} seated successfully. KOT terminal initialized.`);
-    setWalkinName('');
-    setWalkinNotes('');
+    setIsWalkinOpen(false);
+    showToast(`Walk-in for ${walkinName || 'Guest'} seated. KOT terminal initialized.`);
+    setWalkinName(''); setWalkinNotes('');
   };
 
-  const filteredReservations = reservations.filter((r) => {
-    if (activeQueueTab === 'all') return true;
-    return r.status === activeQueueTab;
-  });
+  const filtered = reservations.filter(r =>
+    activeQueueTab === 'all' ? true : r.status === activeQueueTab
+  );
+
+  const counts = {
+    all: reservations.length,
+    pending: reservations.filter(r => r.status === 'pending').length,
+    confirmed: reservations.filter(r => r.status === 'confirmed').length,
+    seated: reservations.filter(r => r.status === 'seated').length,
+    completed: reservations.filter(r => r.status === 'completed').length,
+    cancelled: reservations.filter(r => r.status === 'cancelled').length,
+  };
 
   return (
-    <div className="bg-background font-body-md text-body-md text-on-surface antialiased min-h-screen">
-      {/* Top Header Bar */}
-      <header className="fixed top-10 inset-x-0 z-50 bg-surface/95 backdrop-blur-xl shadow-[0_1px_8px_rgba(21,42,32,0.04)]">
-        <div className="h-20 w-full px-space-md lg:px-margin-desktop flex items-center justify-between gap-space-md">
-          <div className="flex items-center gap-space-lg">
-            <div className="flex items-center gap-space-sm">
-              <div className="w-10 h-10 rounded-lg bg-primary-container text-secondary flex items-center justify-center font-title-editorial text-xl font-bold shadow-inner">
-                M
-              </div>
-              <div className="flex flex-col">
-                <span className="font-title-editorial text-title-editorial text-primary tracking-tight font-semibold leading-none">Mayflower</span>
-                <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest mt-1">Sanctuaries · Chennai</span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#F7F5F0] text-[#1A1A1A] font-sans antialiased">
 
-            <div className="hidden xl:flex items-center bg-surface-container px-space-sm py-1.5 rounded gap-space-xs">
-              <span className="font-caption text-caption text-on-surface-variant font-medium">Sanctuary:</span>
+      {/* ── Sub-header strip (sanctuary selector + quick actions) ── */}
+      <div className="bg-white border-b border-[#E8E2D5] shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-12 gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-stone-500">Sanctuary:</span>
               <select
                 value={selectedSanctuary}
-                onChange={(e) => setSelectedSanctuary(e.target.value)}
-                className="bg-transparent font-caption text-caption font-semibold text-primary focus:outline-none cursor-pointer pr-space-xs"
+                onChange={e => setSelectedSanctuary(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-[#1E3932] focus:outline-none cursor-pointer"
               >
                 <option value="poes">Poes Garden Flagship</option>
                 <option value="ecr">Palavakkam ECR</option>
                 <option value="anna">Anna Nagar East</option>
                 <option value="velachery">Velachery Lakeside</option>
               </select>
+              <ChevronDown className="w-3 h-3 text-stone-400" />
             </div>
-          </div>
-
-          <div className="flex items-center gap-space-md">
-            <div className="hidden sm:flex items-center gap-space-xs bg-surface-container-low px-space-sm py-1 rounded">
-              <span className="inline-block w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-              <span className="font-caption text-caption text-on-surface-variant">Petpooja POS</span>
-              <span className="font-label-caps text-label-caps text-secondary font-bold uppercase">Live Sync</span>
-            </div>
-
-            <div className="flex items-center gap-space-sm bg-surface-container px-space-sm py-1 rounded">
-              <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold hidden md:inline">Active Role</span>
-              <span className="font-label-caps text-label-caps px-space-xs py-0.5 rounded bg-primary-container text-on-primary font-bold uppercase">
-                {user.role ? user.role.toUpperCase() : 'MANAGER'}
-              </span>
-              <div className="w-8 h-8 rounded-full bg-primary text-on-primary font-bold flex items-center justify-center text-xs">
-                {user.name ? user.name[0].toUpperCase() : 'M'}
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-medium text-emerald-700">Live Sync · Active</span>
               </div>
-              <button onClick={onLogout} className="text-caption text-error hover:underline font-label-caps uppercase ml-1 cursor-pointer">
-                Logout
+              <button
+                onClick={handleSync}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#F7F5F0] border border-[#E8E2D5] rounded-lg text-[11px] font-semibold text-stone-600 hover:bg-[#EDE9E0] transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+                Sync
+              </button>
+              <button
+                onClick={() => setIsWalkinOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1E3932] text-white rounded-lg text-[11px] font-semibold hover:bg-[#152d26] transition-colors cursor-pointer"
+              >
+                <UserPlus className="w-3 h-3" />
+                Walk-In
               </button>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Sub-Navigation */}
-        {onSwitchRole && (
-          <div className="w-full bg-surface-container-low px-space-md lg:px-margin-desktop overflow-x-auto shadow-[0_1px_4px_rgba(21,42,32,0.02)]">
-            <nav className="flex items-center gap-space-xs py-2 whitespace-nowrap min-w-max">
-              <button onClick={() => onSwitchRole?.('owner-management')} className="px-space-sm py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-primary uppercase cursor-pointer">
-                Owner & Multi-Outlet
-              </button>
-              <button onClick={() => onSwitchRole?.('admin-suite')} className="px-space-sm py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-primary uppercase cursor-pointer">
-                System Admin
-              </button>
-              <button onClick={() => onSwitchRole?.('manager-operations')} className="px-space-sm py-1.5 transition-all bg-primary-container text-on-primary font-semibold rounded shadow-sm font-label-caps uppercase cursor-pointer">
-                Floor Operations
-              </button>
-              <button onClick={() => onSwitchRole?.('chef-kitchen')} className="px-space-sm py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-primary uppercase cursor-pointer">
-                Kitchen & HACCP
-              </button>
-              <button onClick={() => onSwitchRole?.('hr-roster')} className="px-space-sm py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-primary uppercase cursor-pointer">
-                Staffing & HR
-              </button>
-              <button onClick={() => onSwitchRole?.('accountant-ledger')} className="px-space-sm py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-primary uppercase cursor-pointer">
-                POS Reconciliation
-              </button>
-              <button onClick={() => onSwitchRole?.('customer-portal')} className="px-space-sm py-1.5 font-label-caps text-label-caps text-on-surface-variant hover:text-primary uppercase cursor-pointer">
-                VIP Guest Suite
-              </button>
-            </nav>
+      {/* ── Main Content ── */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {/* Shift Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-[10px] uppercase tracking-widest text-[#C5A880] font-semibold">Live Floor Command</span>
+              <span className="text-stone-300 text-xs">·</span>
+              <span className="text-xs text-stone-400">Floor Operations · Poes Garden Ground Floor</span>
+            </div>
+            <h1 className="text-xl font-semibold text-[#1E3932] tracking-tight">Poes Garden Service Deck</h1>
           </div>
-        )}
-      </header>
+          <div className="text-xs text-stone-500">Captain on Duty: <span className="font-semibold text-[#1E3932]">Vignesh Ramanathan</span></div>
+        </div>
 
-      {/* Main Operational Canvas */}
-      <main className="w-full pt-[9.5rem] bg-background min-h-[calc(100vh-140px)] pb-16">
-        <div className="flex flex-col w-full">
-          
-          {/* Top Operational Banner & Live Status Ribbon */}
-          <section className="w-full px-space-md lg:px-margin-desktop py-space-xl">
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-space-lg mb-space-lg">
+        {/* ── 4 Metric Cards ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1 */}
+          <div className="bg-white rounded-xl border border-[#E8E2D5] p-4 shadow-sm">
+            <div className="flex items-start justify-between mb-3">
               <div>
-                <div className="flex items-center gap-space-xs mb-space-2xs">
-                  <span className="font-label-caps text-label-caps uppercase text-secondary tracking-widest">Live Floor Command</span>
-                  <span className="text-on-surface-variant font-caption text-caption">·</span>
-                  <span className="font-caption text-caption text-on-surface-variant font-medium">Petpooja Terminal Node #04 (Poes Garden Ground Floor)</span>
-                </div>
-                <h1 className="font-headline-lg text-headline-lg text-primary tracking-tight">Poes Garden Service Deck</h1>
+                <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Active Shift</p>
+                <p className="text-sm font-semibold text-[#1E3932] mt-0.5">Midday Luncheon</p>
               </div>
-              <div className="flex flex-wrap items-center gap-space-sm">
-                <button
-                  onClick={handleSyncPos}
-                  className="flex items-center gap-space-xs px-space-sm py-2 bg-surface-container hover:bg-surface-container-high transition-all text-on-surface rounded shadow-sm cursor-pointer"
-                >
-                  <span className={`material-symbols-outlined text-[18px] text-secondary ${isSyncing ? 'animate-spin' : ''}`}>sync</span>
-                  <span className="font-label-caps text-label-caps uppercase tracking-wider">Sync POS Ledger</span>
-                </button>
-                <button
-                  onClick={() => setIsWalkinModalOpen(true)}
-                  className="flex items-center gap-space-xs px-space-md py-2 bg-primary-container hover:bg-primary text-on-primary transition-all rounded shadow-md cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[18px]">add_circle</span>
-                  <span className="font-label-caps text-label-caps uppercase tracking-wider">Rapid Walk-In</span>
-                </button>
+              <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] flex items-center justify-center">
+                <Utensils className="w-4 h-4 text-[#C5A880]" />
+              </div>
+            </div>
+            <p className="text-xs text-stone-600 font-medium">12:00 PM – 3:30 PM</p>
+            <p className="text-[11px] text-stone-400 mt-0.5">72m elapsed</p>
+          </div>
+
+          {/* Card 2 */}
+          <div className="bg-white rounded-xl border border-[#E8E2D5] p-4 shadow-sm">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Floor Saturation</p>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-2xl font-bold text-[#1E3932]">18</span>
+                  <span className="text-sm text-stone-400">/ 24 Covers</span>
+                </div>
+              </div>
+              <div className="relative w-10 h-10">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#E8E2D5" strokeWidth="3.5" />
+                  <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#1E3932" strokeDasharray="75, 100" strokeLinecap="round" strokeWidth="3.5" />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-[#1E3932]">75%</span>
+              </div>
+            </div>
+            <div className="w-full bg-[#F7F5F0] rounded-full h-1.5">
+              <div className="bg-[#1E3932] h-1.5 rounded-full" style={{ width: '75%' }} />
+            </div>
+            <div className="flex justify-between mt-1.5 text-[10px] text-stone-400">
+              <span>Conservatory: 8/10</span><span>Glasshouse: 10/14</span>
+            </div>
+          </div>
+
+          {/* Card 3 */}
+          <div className="bg-white rounded-xl border border-[#E8E2D5] p-4 shadow-sm">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Arrival Waitlist</p>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-2xl font-bold text-[#1E3932]">2</span>
+                  <span className="text-sm text-stone-400">Parties</span>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] flex items-center justify-center">
+                <Clock className="w-4 h-4 text-[#C5A880]" />
+              </div>
+            </div>
+            <p className="text-xs text-stone-600 font-medium">Avg dwell: <span className="text-[#1E3932] font-semibold">12 mins</span></p>
+            <p className="text-[11px] text-stone-400 mt-0.5">Next release: C2 in ~4 min</p>
+          </div>
+
+          {/* Card 4 */}
+          <div className="bg-white rounded-xl border border-[#E8E2D5] p-4 shadow-sm">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">KDS Pass Velocity</p>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-2xl font-bold text-[#1E3932]">4</span>
+                  <span className="text-sm text-stone-400">KOTs Pending</span>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-lg bg-[#F7F5F0] flex items-center justify-center">
+                <Flame className="w-4 h-4 text-[#C5A880]" />
+              </div>
+            </div>
+            <p className="text-xs text-stone-600 font-medium">Ticket time: <span className="text-[#1E3932] font-semibold">11 min</span></p>
+            <p className="text-[11px] text-stone-400 mt-0.5">Executive Chef on Expo</p>
+          </div>
+        </div>
+
+        {/* ── Main 2-col Grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          {/* LEFT: Reservation Pipeline (8 cols) */}
+          <div className="lg:col-span-8 space-y-4">
+
+            {/* Pipeline Header + Tabs */}
+            <div className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <div>
+                  <h2 className="text-base font-semibold text-[#1E3932]">Reservation Lifecycle Pipeline</h2>
+                  <p className="text-xs text-stone-400 mt-0.5">Live reservation queue · Guest concierge review & seating flow</p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="text-xs text-emerald-600 font-medium">Real-time polling active</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                {(['all','pending','confirmed','seated','completed','cancelled','evidence'] as QueueTab[]).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveQueueTab(tab)}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors cursor-pointer ${
+                      activeQueueTab === tab
+                        ? 'bg-[#1E3932] text-white shadow-sm'
+                        : 'bg-[#F7F5F0] text-stone-500 hover:text-[#1E3932]'
+                    }`}
+                  >
+                    {tab === 'all' && `All (${counts.all})`}
+                    {tab === 'pending' && `Pending (${counts.pending})`}
+                    {tab === 'confirmed' && `Confirmed (${counts.confirmed})`}
+                    {tab === 'seated' && `Seated (${counts.seated})`}
+                    {tab === 'completed' && `Completed (${counts.completed})`}
+                    {tab === 'cancelled' && `No-Show (${counts.cancelled})`}
+                    {tab === 'evidence' && 'Evidence Review'}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Metric Ribbons Bento Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-space-md">
-              {/* Card 1 */}
-              <div className="bg-surface-container-lowest p-space-md rounded shadow-sm relative overflow-hidden flex flex-col justify-between border border-surface-container">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col">
-                    <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">Active Shift Cadence</span>
-                    <span className="font-title-editorial text-title-editorial text-primary mt-1">Midday Luncheon</span>
-                  </div>
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-container text-secondary">
-                    <span className="material-symbols-outlined text-[18px]">restaurant</span>
-                  </span>
-                </div>
-                <div className="mt-space-md pt-space-xs">
-                  <div className="flex items-center justify-between text-body-sm font-body-sm text-on-surface">
-                    <span className="font-medium">Slot: 12:00 PM – 3:30 PM</span>
-                    <span className="font-label-caps text-label-caps text-secondary font-bold uppercase">72m elapsed</span>
-                  </div>
-                  <p className="font-caption text-caption text-on-surface-variant mt-0.5">Captain on Duty: Vignesh Ramanathan</p>
-                </div>
-              </div>
-
-              {/* Card 2 */}
-              <div className="bg-surface-container-lowest p-space-md rounded shadow-sm flex flex-col justify-between border border-surface-container">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col">
-                    <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">Floor Saturation</span>
-                    <div className="flex items-baseline gap-space-xs mt-1">
-                      <span className="font-headline-md text-headline-md text-primary font-bold">18</span>
-                      <span className="font-body-md text-body-md text-on-surface-variant">/ 24 Covers</span>
+            {/* Evidence Tab */}
+            {activeQueueTab === 'evidence' && (
+              <div className="space-y-3">
+                {kitchenTasks?.filter(t => taskEvidence[t.id]).map(task => (
+                  <div key={task.id} className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C5A880]">{task.category}</span>
+                        <h3 className="text-sm font-semibold text-[#1E3932] mt-1">{task.title}</h3>
+                        <div className="flex flex-wrap gap-3 mt-3">
+                          {taskEvidence[task.id].map(ev => (
+                            <div key={ev.id} className="flex gap-3 p-3 bg-[#F7F5F0] rounded-lg border border-[#E8E2D5]">
+                              <div className="w-20 h-20 rounded-lg overflow-hidden border border-[#E8E2D5]">
+                                <img src={ev.storagePath} alt="Evidence" className="w-full h-full object-cover" />
+                              </div>
+                              <div className="flex flex-col justify-center">
+                                <p className="text-xs font-semibold text-[#1E3932]">{new Date(ev.capturedAt).toLocaleString()}</p>
+                                {ev.geoLat && ev.geoLng && (
+                                  <p className="text-[11px] text-stone-400 mt-1 flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" />{ev.geoLat}, {ev.geoLng}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex md:flex-col gap-2 shrink-0">
+                        <button onClick={() => handleApproveEvidence(task.id)} className="flex items-center gap-1.5 px-4 py-2 bg-[#1E3932] text-white text-xs font-semibold rounded-lg hover:bg-[#152d26] transition-colors cursor-pointer">
+                          <Check className="w-3.5 h-3.5" /> Approve
+                        </button>
+                        <button onClick={() => handleRejectEvidence(task.id)} className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg hover:bg-rose-100 transition-colors cursor-pointer">
+                          <X className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="relative w-12 h-12 flex items-center justify-center">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                      <path className="text-surface-container" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.5" />
-                      <path className="text-secondary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray="75, 100" strokeLinecap="round" strokeWidth="3.5" />
-                    </svg>
-                    <span className="absolute font-label-numeric text-label-numeric text-primary font-bold">75%</span>
-                  </div>
-                </div>
-                <div className="mt-space-md pt-space-xs">
-                  <div className="w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
-                    <div className="bg-primary-container h-full rounded-full" style={{ width: '75%' }}></div>
-                  </div>
-                  <div className="flex justify-between items-center mt-1.5">
-                    <span className="font-caption text-caption text-on-surface-variant">Conservatory: 8/10</span>
-                    <span className="font-caption text-caption text-on-surface-variant">Glasshouse: 10/14</span>
-                  </div>
-                </div>
+                ))}
+                {!kitchenTasks?.filter(t => taskEvidence[t.id]).length && (
+                  <div className="bg-white rounded-xl border border-[#E8E2D5] p-8 text-center text-stone-400 text-sm">No evidence pending review.</div>
+                )}
               </div>
+            )}
 
-              {/* Card 3 */}
-              <div className="bg-surface-container-lowest p-space-md rounded shadow-sm flex flex-col justify-between border border-surface-container">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col">
-                    <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">Arrival Waitlist</span>
-                    <div className="flex items-baseline gap-space-xs mt-1">
-                      <span className="font-headline-md text-headline-md text-primary font-bold">2</span>
-                      <span className="font-body-md text-body-md text-on-surface-variant">Parties</span>
+            {/* Reservation Cards */}
+            {activeQueueTab !== 'evidence' && (
+              <div className="space-y-3">
+                {filtered.length === 0 && (
+                  <div className="bg-white rounded-xl border border-[#E8E2D5] p-8 text-center text-stone-400 text-sm">No reservations in this category.</div>
+                )}
+                {filtered.map(item => (
+                  <div key={item.id} className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4 hover:shadow-md transition-shadow">
+
+                    {/* Guest row */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[#1E3932]/10 text-[#1E3932] flex items-center justify-center font-bold text-sm shrink-0">
+                          {item.guestName[0]}
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-[#1E3932]">{item.guestName}</span>
+                            {item.badge && (
+                              <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${item.badgeColor}`}>{item.badge}</span>
+                            )}
+                            <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${STATUS_STYLES[item.status]}`}>{item.statusLabel}</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-stone-400">
+                            <span className="flex items-center gap-1"><Users className="w-3 h-3" />{item.guests} Guests</span>
+                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{item.time}</span>
+                            <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{item.area}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-semibold text-[#1E3932]">{item.table}</p>
+                        {item.pref && <p className="text-[11px] text-stone-400 mt-0.5">{item.pref}</p>}
+                      </div>
+                    </div>
+
+                    {/* Tags */}
+                    {item.tags && item.tags.length > 0 && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 bg-[#F7F5F0] rounded-lg px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Tasting Profile:</span>
+                        {item.tags.map((tag, i) => (
+                          <span key={i} className="text-[11px] bg-white border border-[#E8E2D5] text-stone-600 px-2 py-0.5 rounded-md">{tag}</span>
+                        ))}
+                        <span className="ml-auto text-[11px] text-stone-400 italic">{item.ref}</span>
+                      </div>
+                    )}
+
+                    {/* Course info */}
+                    {item.courseInfo && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 bg-[#F7F5F0] rounded-lg px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Active Course:</span>
+                        <span className="text-xs font-medium text-[#1E3932]">{item.courseInfo}</span>
+                        <span className="ml-auto text-[11px] text-[#C5A880] font-semibold">Sommelier Pairing En Route</span>
+                      </div>
+                    )}
+
+                    {/* Guest note */}
+                    {item.note && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Guest Note:</span>
+                        <span className="text-xs text-stone-600">{item.note}</span>
+                        <span className="ml-auto text-[11px] text-stone-400 italic">{item.ref}</span>
+                      </div>
+                    )}
+
+                    {/* Action bar */}
+                    <div className="mt-3 pt-3 border-t border-[#F0EBE3] flex flex-wrap items-center justify-between gap-2">
+                      {item.status === 'pending' && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <select className="h-8 px-2 bg-[#F7F5F0] border border-[#E8E2D5] text-xs text-[#1E3932] rounded-lg focus:outline-none cursor-pointer">
+                              <option>Allocate: Table C4 (Corner, 4p)</option>
+                              <option>Allocate: Table C2 (Window, 4p)</option>
+                              <option>Allocate: Table G1 (Glasshouse, 6p)</option>
+                            </select>
+                            <button onClick={() => handleApprove(item.id)} className="h-8 px-3 bg-[#1E3932] text-white text-xs font-semibold rounded-lg hover:bg-[#152d26] transition-colors cursor-pointer">
+                              Approve & Assign
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => showToast(`Adjusting booking for ${item.guestName}`)} className="h-8 px-3 bg-[#F7F5F0] border border-[#E8E2D5] text-xs text-stone-600 rounded-lg hover:bg-[#EDE9E0] transition-colors cursor-pointer">Modify</button>
+                            <button onClick={() => handleDecline(item.id)} className="h-8 px-3 bg-rose-50 border border-rose-200 text-xs text-rose-700 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer">Decline</button>
+                          </div>
+                        </>
+                      )}
+                      {item.status === 'confirmed' && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleSeat(item.id, item.table || 'Table')} className="h-8 px-3 bg-[#1E3932] text-white text-xs font-semibold rounded-lg hover:bg-[#152d26] transition-colors cursor-pointer">Mark Seated</button>
+                            <button onClick={() => showToast('Opening Floor Matrix...')} className="h-8 px-3 bg-[#F7F5F0] border border-[#E8E2D5] text-xs text-stone-600 rounded-lg hover:bg-[#EDE9E0] transition-colors cursor-pointer">Re-Table</button>
+                          </div>
+                          <button onClick={() => handleNoShow(item.id)} className="h-8 px-3 bg-rose-50 border border-rose-200 text-xs text-rose-700 rounded-lg hover:bg-rose-100 transition-colors cursor-pointer">No-Show</button>
+                        </>
+                      )}
+                      {item.status === 'seated' && (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleComplete(item.id)} className="h-8 px-3 bg-[#F7F5F0] border border-[#E8E2D5] text-xs font-semibold text-[#1E3932] rounded-lg hover:bg-[#EDE9E0] transition-colors cursor-pointer">Close & Bill</button>
+                          <button className="h-8 px-3 bg-[#F7F5F0] border border-[#E8E2D5] text-xs text-stone-600 rounded-lg hover:bg-[#EDE9E0] transition-colors cursor-pointer">Add Course Note</button>
+                          <span className="ml-auto text-[11px] text-stone-400">Captain: Vignesh R.</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-container text-secondary">
-                    <span className="material-symbols-outlined text-[18px]">hourglass_top</span>
-                  </span>
-                </div>
-                <div className="mt-space-md pt-space-xs">
-                  <div className="flex items-center justify-between text-body-sm font-body-sm">
-                    <span className="text-on-surface">Average Dwell:</span>
-                    <span className="font-label-numeric text-label-numeric text-secondary font-bold">12 mins pace</span>
-                  </div>
-                  <p className="font-caption text-caption text-on-surface-variant mt-0.5">Next table release expected: C2 (4 min)</p>
-                </div>
+                ))}
               </div>
+            )}
+          </div>
 
-              {/* Card 4 */}
-              <div className="bg-surface-container-lowest p-space-md rounded shadow-sm flex flex-col justify-between border border-surface-container">
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col">
-                    <span className="font-label-caps text-label-caps uppercase text-on-surface-variant">KDS Pass Velocity</span>
-                    <div className="flex items-baseline gap-space-xs mt-1">
-                      <span className="font-headline-md text-headline-md text-primary font-bold">4</span>
-                      <span className="font-body-md text-body-md text-on-surface-variant">KOTs Pending</span>
+          {/* RIGHT: Side Panels (4 cols) */}
+          <div className="lg:col-span-4 space-y-4">
+
+            {/* Shift SOP Progress */}
+            <div className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-[#1E3932]">Shift SOP Progress</h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-[#F7F5F0] border border-[#E8E2D5] text-stone-500 px-2 py-0.5 rounded-md">Lunch Audit</span>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />, label: 'Morning Mise-en-place', sub: 'Verified by Executive Chef', pct: '100%', color: 'text-emerald-600' },
+                  { icon: <Circle className="w-4 h-4 text-amber-500" />, label: 'Bar & Cellar Pre-flight', sub: 'Tonic & botanical syrups restock', pct: '88%', color: 'text-amber-600' },
+                  { icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />, label: 'Conservatory Climate & Lux', sub: 'HVAC calibrated to 22.5°C, 65% RH', pct: '100%', color: 'text-emerald-600' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start justify-between gap-3 bg-[#F7F5F0] rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5 shrink-0">{item.icon}</div>
+                      <div>
+                        <p className="text-xs font-semibold text-[#1E3932]">{item.label}</p>
+                        <p className="text-[11px] text-stone-400 mt-0.5">{item.sub}</p>
+                      </div>
                     </div>
+                    <span className={`text-xs font-bold shrink-0 ${item.color}`}>{item.pct}</span>
                   </div>
-                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-surface-container text-primary">
-                    <span className="material-symbols-outlined text-[18px]">skillet</span>
-                  </span>
-                </div>
-                <div className="mt-space-md pt-space-xs">
-                  <div className="flex items-center justify-between text-body-sm font-body-sm">
-                    <span className="text-on-surface">Service Tempo:</span>
-                    <span className="font-label-numeric text-label-numeric text-primary font-bold">11m ticket time</span>
-                  </div>
-                  <p className="font-caption text-caption text-on-surface-variant mt-0.5">Executive Chef: Chef Senthil on Expo</p>
-                </div>
+                ))}
               </div>
             </div>
-          </section>
 
-          {/* Main Operational Grid: Workflow Queue & Side Panels */}
-          <section className="w-full px-space-md lg:px-margin-desktop pb-space-4xl">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg">
-              
-              {/* Left 8 Columns: Live Reservation Management Workflow */}
-              <div className="lg:col-span-8 flex flex-col gap-space-md">
-                
-                {/* Queue Filter Tabs & Header */}
-                <div className="bg-surface-container-lowest p-space-md rounded shadow-sm border border-surface-container">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm pb-space-sm">
-                    <div>
-                      <h2 className="font-title-editorial text-title-editorial text-primary">Reservation Lifecycle Pipeline</h2>
-                      <p className="font-caption text-caption text-on-surface-variant mt-0.5">Petpooja sync stream · Guest concierge review & seating flow</p>
-                    </div>
-                    <div className="flex items-center gap-space-xs">
-                      <span className="w-2 h-2 rounded-full bg-secondary animate-ping"></span>
-                      <span className="font-caption text-caption text-secondary font-medium">Real-time polling active</span>
+            {/* Live Floor Escalations */}
+            <div className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-[#1E3932]">Live Floor Escalations</h2>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                {[
+                  { icon: <Flower2 className="w-4 h-4 text-pink-400" />, title: 'Floral Setup Done', time: '6m ago', desc: 'Anniversary tuberoses placed on Table C4 for Dr. Maran.' },
+                  { icon: <Wine className="w-4 h-4 text-[#1E3932]" />, title: 'Sommelier Flight', time: '14m ago', desc: 'Table G3 requested premier cru pairing consult.' },
+                  { icon: <AlertTriangle className="w-4 h-4 text-amber-500" />, title: 'Wagyu Tenderloin 86 Alert', time: '22m ago', desc: 'Executive Chef flagged only 3 portions remaining for lunch.' },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 bg-[#F7F5F0] rounded-lg p-3">
+                    <div className="w-7 h-7 rounded-lg bg-white border border-[#E8E2D5] flex items-center justify-center shrink-0">{item.icon}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[#1E3932] truncate">{item.title}</span>
+                        <span className="text-[11px] text-stone-400 shrink-0">{item.time}</span>
+                      </div>
+                      <p className="text-[11px] text-stone-400 mt-0.5 leading-relaxed">{item.desc}</p>
                     </div>
                   </div>
+                ))}
+              </div>
+            </div>
 
-                  {/* Dynamic Tabs */}
-                  <div className="flex items-center gap-space-xs overflow-x-auto pt-space-xs">
-                    {(['all', 'pending', 'confirmed', 'seated', 'completed', 'cancelled'] as const).map((tab) => (
+            {/* Zone Allocation Map */}
+            <div className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-sm font-semibold text-[#1E3932]">Zone Allocation Map</h2>
+                <span className="text-[11px] text-[#C5A880] font-medium">Click to inspect</span>
+              </div>
+              <p className="text-[11px] text-stone-400 mb-4">Poes Garden Sanctuary</p>
+
+              <div className="space-y-4">
+                {/* Conservatory */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#1E3932]">The Conservatory</span>
+                    <span className="text-[11px] text-stone-400">4 Tables · 80% Full</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { id: 'C1', cap: '2p', state: 'occ', info: 'C1: Occupied by Meera Chandran (2p) · 12:45 PM' },
+                      { id: 'C2', cap: '4p', state: 'bill', info: 'C2: Closing check (4p) · 12:00 PM' },
+                      { id: 'C3', cap: '2p', state: 'free', info: 'C3: Reserved for 2:15 PM (2p)' },
+                      { id: 'C4', cap: '4p', state: 'hold', info: 'C4: Allocated — Dr. Maran (4p) · 1:15 PM' },
+                    ].map(t => (
                       <button
-                        key={tab}
-                        onClick={() => setActiveQueueTab(tab)}
-                        className={`px-3 py-1.5 font-label-caps text-label-caps rounded uppercase transition-all whitespace-nowrap cursor-pointer ${
-                          activeQueueTab === tab
-                            ? 'bg-primary-container text-on-primary font-bold shadow-xs'
-                            : 'bg-surface-container text-on-surface-variant hover:text-primary'
+                        key={t.id}
+                        onClick={() => setInspectTable(inspectTable === t.info ? null : t.info)}
+                        className={`p-2 rounded-lg text-center transition-all hover:scale-105 cursor-pointer border ${
+                          t.state === 'occ'  ? 'bg-[#1E3932]/10 border-[#1E3932]/20 text-[#1E3932]' :
+                          t.state === 'bill' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
+                          t.state === 'free' ? 'bg-[#F7F5F0] border-[#E8E2D5] text-stone-500' :
+                          'bg-amber-50 border-amber-200 text-amber-800'
                         }`}
                       >
-                        {tab === 'all' && `All (${reservations.length})`}
-                        {tab === 'pending' && `Pending Approval (${reservations.filter((r) => r.status === 'pending').length})`}
-                        {tab === 'confirmed' && `Confirmed (${reservations.filter((r) => r.status === 'confirmed').length})`}
-                        {tab === 'seated' && `Seated (${reservations.filter((r) => r.status === 'seated').length})`}
-                        {tab === 'completed' && `Completed (${reservations.filter((r) => r.status === 'completed').length})`}
-                        {tab === 'cancelled' && `No-Show (${reservations.filter((r) => r.status === 'cancelled').length})`}
+                        <div className="text-xs font-bold">{t.id}</div>
+                        <div className="text-[10px] mt-0.5 opacity-75">
+                          {t.cap} · {t.state === 'occ' ? 'Occ' : t.state === 'bill' ? 'Bill' : t.state === 'free' ? 'Free' : 'Hold'}
+                        </div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Reservation List Container */}
-                <div className="flex flex-col gap-space-md">
-                  {filteredReservations.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-surface-container-lowest p-space-md rounded shadow-sm hover:shadow-md transition-shadow border border-surface-container"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-space-sm pb-space-xs">
-                        <div className="flex items-start gap-space-sm">
-                          <div className="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-title-editorial text-title-editorial font-bold">
-                            {item.guestName[0]}
-                          </div>
-                          <div>
-                            <div className="flex flex-wrap items-center gap-space-xs">
-                              <h3 className="font-title-editorial text-title-editorial text-primary font-semibold">{item.guestName}</h3>
-                              {item.badge && (
-                                <span className={`px-2 py-0.5 rounded-full font-label-caps text-label-caps uppercase font-bold ${item.badgeBg}`}>
-                                  {item.badge}
-                                </span>
-                              )}
-                              <span className={`px-2 py-0.5 rounded-full font-label-caps text-label-caps uppercase font-bold ${item.statusBg}`}>
-                                {item.statusLabel}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-space-sm mt-1 text-caption font-caption text-on-surface-variant">
-                              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[15px]">group</span> {item.guests} Guests</span>
-                              <span>·</span>
-                              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[15px]">schedule</span> {item.time}</span>
-                              <span>·</span>
-                              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-[15px]">deck</span> {item.area}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right flex md:flex-col items-center md:items-end justify-between">
-                          <span className="font-label-numeric text-label-numeric text-primary font-semibold">{item.table}</span>
-                          <span className="font-caption text-caption text-secondary">{item.pref}</span>
-                        </div>
-                      </div>
-
-                      {/* Culinary Tags / Notes */}
-                      {item.tags && item.tags.length > 0 && (
-                        <div className="bg-surface-container-low p-space-xs rounded my-space-xs flex flex-wrap items-center gap-space-xs">
-                          <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">Tasting Profile:</span>
-                          {item.tags.map((tag, idx) => (
-                            <span key={idx} className="px-2 py-0.5 rounded bg-surface-container-highest text-primary font-caption text-caption">
-                              {tag}
-                            </span>
-                          ))}
-                          <span className="ml-auto text-caption font-caption text-on-surface-variant italic">{item.ref}</span>
-                        </div>
-                      )}
-
-                      {item.courseInfo && (
-                        <div className="bg-surface-container-low p-space-xs rounded my-space-xs flex flex-wrap items-center gap-space-xs">
-                          <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">Active Course:</span>
-                          <span className="font-body-sm text-body-sm text-primary font-medium">{item.courseInfo}</span>
-                          <span className="ml-auto text-caption font-caption text-secondary font-semibold">Sommelier Pairing En Route</span>
-                        </div>
-                      )}
-
-                      {item.note && (
-                        <div className="bg-surface-container-low p-space-xs rounded my-space-xs flex flex-wrap items-center gap-space-xs">
-                          <span className="font-label-caps text-label-caps text-on-surface-variant uppercase font-semibold">Guest Intention:</span>
-                          <span className="font-body-sm text-body-sm text-on-surface">{item.note}</span>
-                          <span className="ml-auto text-caption font-caption text-on-surface-variant italic">{item.ref}</span>
-                        </div>
-                      )}
-
-                      {/* Action Bar */}
-                      <div className="pt-space-xs flex flex-wrap items-center justify-between gap-space-xs">
-                        {item.status === 'pending' && (
-                          <>
-                            <div className="flex items-center gap-space-xs">
-                              <select className="h-9 px-space-xs bg-surface-container text-body-sm font-body-sm text-primary rounded focus:outline-none cursor-pointer border border-surface-container-high">
-                                <option value="C4">Allocate: Table C4 (Corner Conservatory, 4p)</option>
-                                <option value="C2">Allocate: Table C2 (Conservatory Window, 4p)</option>
-                                <option value="G1">Allocate: Table G1 (Glasshouse, 6p)</option>
-                              </select>
-                              <button
-                                onClick={() => handleApprove(item.id, 'C4')}
-                                className="h-9 px-space-sm bg-primary-container hover:bg-primary text-on-primary font-label-caps text-label-caps uppercase rounded transition-colors shadow-sm cursor-pointer"
-                              >
-                                Approve & Assign
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-space-xs">
-                              <button
-                                onClick={() => showToast(`Adjusting booking parameters for ${item.guestName}`)}
-                                className="h-9 px-3 bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-label-caps text-label-caps uppercase rounded transition-colors cursor-pointer"
-                              >
-                                Modify
-                              </button>
-                              <button
-                                onClick={() => handleDecline(item.id)}
-                                className="h-9 px-3 bg-rose-50 hover:bg-rose-100 text-error font-label-caps text-label-caps uppercase rounded transition-colors cursor-pointer"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          </>
-                        )}
-
-                        {item.status === 'confirmed' && (
-                          <>
-                            <div className="flex items-center gap-space-xs">
-                              <button
-                                onClick={() => handleSeatGuest(item.id, item.table || 'Table')}
-                                className="h-9 px-space-sm bg-primary-container hover:bg-primary text-on-primary font-label-caps text-label-caps uppercase rounded transition-colors shadow-sm flex items-center gap-1 cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">chair_alt</span>
-                                Mark Seated
-                              </button>
-                              <button
-                                onClick={() => showToast('Opening Floor Matrix to reassign covers...')}
-                                className="h-9 px-3 bg-surface-container hover:bg-surface-container-high text-on-surface font-label-caps text-label-caps uppercase rounded transition-colors cursor-pointer"
-                              >
-                                Re-table
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-space-xs">
-                              <button
-                                onClick={() => handleNoShow(item.id)}
-                                className="h-9 px-3 bg-rose-50 hover:bg-rose-100 text-error font-label-caps text-label-caps uppercase rounded transition-colors cursor-pointer"
-                              >
-                                No-Show
-                              </button>
-                            </div>
-                          </>
-                        )}
-
-                        {item.status === 'seated' && (
-                          <>
-                            <div className="flex items-center gap-space-xs">
-                              <button
-                                onClick={() => handleCompleteService(item.id)}
-                                className="h-9 px-space-sm bg-surface-container hover:bg-surface-container-high text-primary font-label-caps text-label-caps uppercase rounded transition-colors flex items-center gap-1 cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">receipt_long</span>
-                                Generate POS Bill
-                              </button>
-                              <button className="h-9 px-3 bg-surface-container-low hover:bg-surface-container text-on-surface font-label-caps text-label-caps uppercase rounded transition-colors cursor-pointer">
-                                Add Course Note
-                              </button>
-                            </div>
-                            <span className="font-caption text-caption text-on-surface-variant">Captain: Vignesh R.</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right 4 Columns: Operational Checklists, Escalation Feed & Table Matrix */}
-              <div className="lg:col-span-4 flex flex-col gap-space-md">
-                
-                {/* Shift SOP & Inspection Checklist */}
-                <div className="bg-surface-container-lowest p-space-md rounded shadow-sm border border-surface-container">
-                  <div className="flex items-center justify-between pb-space-xs">
-                    <h2 className="font-title-editorial text-title-editorial text-primary">Shift SOP Progress</h2>
-                    <span className="font-label-caps text-label-caps px-2 py-0.5 rounded bg-surface-container text-primary font-bold uppercase">Lunch Audit</span>
+                {/* Glasshouse */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#1E3932]">The Glasshouse Bay</span>
+                    <span className="text-[11px] text-stone-400">3 Tables · 66% Full</span>
                   </div>
-                  <div className="flex flex-col gap-space-sm mt-space-sm">
-                    <div className="p-space-xs bg-surface-container-low rounded flex items-start justify-between gap-space-xs">
-                      <div className="flex items-start gap-space-xs">
-                        <span className="material-symbols-outlined text-secondary text-[20px] mt-0.5">check_circle</span>
-                        <div className="flex flex-col">
-                          <span className="font-body-sm text-body-sm text-primary font-semibold">Morning Mise-en-place</span>
-                          <span className="font-caption text-caption text-on-surface-variant">Verified by Executive Chef Senthil</span>
-                        </div>
-                      </div>
-                      <span className="font-label-numeric text-label-numeric text-secondary font-bold">100%</span>
-                    </div>
-
-                    <div className="p-space-xs bg-surface-container-low rounded flex items-start justify-between gap-space-xs">
-                      <div className="flex items-start gap-space-xs">
-                        <span className="material-symbols-outlined text-amber-600 text-[20px] mt-0.5">pending</span>
-                        <div className="flex flex-col">
-                          <span className="font-body-sm text-body-sm text-primary font-semibold">Bar & Cellar Pre-flight</span>
-                          <span className="font-caption text-caption text-on-surface-variant">Tonic & botanical syrups restock</span>
-                        </div>
-                      </div>
-                      <span className="font-label-numeric text-label-numeric text-amber-700 font-bold">88%</span>
-                    </div>
-
-                    <div className="p-space-xs bg-surface-container-low rounded flex items-start justify-between gap-space-xs">
-                      <div className="flex items-start gap-space-xs">
-                        <span className="material-symbols-outlined text-secondary text-[20px] mt-0.5">check_circle</span>
-                        <div className="flex flex-col">
-                          <span className="font-body-sm text-body-sm text-primary font-semibold">Conservatory Climate & Lux</span>
-                          <span className="font-caption text-caption text-on-surface-variant">HVAC calibrated to 22.5°C, 65% RH</span>
-                        </div>
-                      </div>
-                      <span className="font-label-numeric text-label-numeric text-secondary font-bold">100%</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live Floor Incident & Escalation Feed */}
-                <div className="bg-surface-container-lowest p-space-md rounded shadow-sm border border-surface-container">
-                  <div className="flex items-center justify-between pb-space-xs">
-                    <h2 className="font-title-editorial text-title-editorial text-primary">Live Floor Escalations</h2>
-                    <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
-                  </div>
-                  <div className="flex flex-col gap-space-sm mt-space-sm">
-                    <div className="p-space-xs bg-surface-container-low rounded flex items-start gap-space-xs">
-                      <div className="p-1.5 rounded-full bg-surface-container text-secondary">
-                        <span className="material-symbols-outlined text-[18px]">local_florist</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between">
-                          <span className="font-body-sm text-body-sm text-primary font-semibold">Floral Setup Done</span>
-                          <span className="font-caption text-caption text-on-surface-variant">6m ago</span>
-                        </div>
-                        <p className="font-caption text-caption text-on-surface-variant mt-0.5">Anniversary tuberoses placed on Table C4 for Dr. Maran.</p>
-                      </div>
-                    </div>
-
-                    <div className="p-space-xs bg-surface-container-low rounded flex items-start gap-space-xs">
-                      <div className="p-1.5 rounded-full bg-surface-container text-primary">
-                        <span className="material-symbols-outlined text-[18px]">wine_bar</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between">
-                          <span className="font-body-sm text-body-sm text-primary font-semibold">Sommelier Flight</span>
-                          <span className="font-caption text-caption text-on-surface-variant">14m ago</span>
-                        </div>
-                        <p className="font-caption text-caption text-on-surface-variant mt-0.5">Table G3 requested premier cru pairing consult.</p>
-                      </div>
-                    </div>
-
-                    <div className="p-space-xs bg-surface-container-low rounded flex items-start gap-space-xs">
-                      <div className="p-1.5 rounded-full bg-surface-container text-amber-700">
-                        <span className="material-symbols-outlined text-[18px]">inventory_2</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center justify-between">
-                          <span className="font-body-sm text-body-sm text-primary font-semibold">Wagyu Tenderloin 86 Alert</span>
-                          <span className="font-caption text-caption text-on-surface-variant">22m ago</span>
-                        </div>
-                        <p className="font-caption text-caption text-on-surface-variant mt-0.5">Chef Senthil flagged only 3 portions remaining for lunch.</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Botanical Table Matrix Visual Mini-Map */}
-                <div className="bg-surface-container-lowest p-space-md rounded shadow-sm border border-surface-container">
-                  <div className="flex items-center justify-between pb-space-xs">
-                    <div>
-                      <h2 className="font-title-editorial text-title-editorial text-primary">Zone Allocation Map</h2>
-                      <span className="font-caption text-caption text-on-surface-variant">Poes Garden Sanctuary</span>
-                    </div>
-                    <span className="font-caption text-caption text-secondary font-medium">Click node to inspect</span>
-                  </div>
-
-                  <div className="p-space-md bg-surface-container rounded mt-space-sm flex flex-col gap-space-md">
-                    {/* Zone 1 */}
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="font-label-caps text-label-caps uppercase text-primary font-bold">The Conservatory</span>
-                        <span className="font-caption text-caption text-on-surface-variant">4 Tables · 80% Full</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-space-xs">
-                        <button
-                          onClick={() => setInspectTableInfo('C1: Occupied by Meera Chandran (2p) · Slot: 12:45 PM')}
-                          className="p-2 rounded bg-primary-container text-on-primary text-center transition-transform hover:scale-105 cursor-pointer"
-                        >
-                          <div className="font-label-numeric text-label-numeric font-bold">C1</div>
-                          <div className="font-caption text-[10px] opacity-80">2p · Occ</div>
-                        </button>
-                        <button
-                          onClick={() => setInspectTableInfo('C2: Closing Check (4p) · Slot: 12:00 PM')}
-                          className="p-2 rounded bg-secondary-container text-on-secondary-container text-center transition-transform hover:scale-105 cursor-pointer"
-                        >
-                          <div className="font-label-numeric text-label-numeric font-bold">C2</div>
-                          <div className="font-caption text-[10px] font-semibold">4p · Bill</div>
-                        </button>
-                        <button
-                          onClick={() => setInspectTableInfo('C3: Reserved for 2:15 PM (2p)')}
-                          className="p-2 rounded bg-surface-container-lowest text-primary text-center transition-transform hover:scale-105 cursor-pointer"
-                        >
-                          <div className="font-label-numeric text-label-numeric font-bold">C3</div>
-                          <div className="font-caption text-[10px] text-on-surface-variant">2p · Free</div>
-                        </button>
-                        <button
-                          onClick={() => setInspectTableInfo('C4: Allocated: Dr. Maran (4p) · Slot: 1:15 PM')}
-                          className="p-2 rounded bg-amber-100 text-amber-950 text-center transition-transform hover:scale-105 cursor-pointer"
-                        >
-                          <div className="font-label-numeric text-label-numeric font-bold">C4</div>
-                          <div className="font-caption text-[10px] font-bold">4p · Hold</div>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Zone 2 */}
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className="font-label-caps text-label-caps uppercase text-primary font-bold">The Glasshouse Bay</span>
-                        <span className="font-caption text-caption text-on-surface-variant">3 Tables · 66% Full</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-space-xs">
-                        <button
-                          onClick={() => setInspectTableInfo('G1: Available for VIP allocation')}
-                          className="p-2 rounded bg-surface-container-lowest text-primary text-center transition-transform hover:scale-105 cursor-pointer"
-                        >
-                          <div className="font-label-numeric text-label-numeric font-bold">G1</div>
-                          <div className="font-caption text-[10px] text-on-surface-variant">6p · Free</div>
-                        </button>
-                        <button
-                          onClick={() => setInspectTableInfo('G2: Occupied (4p) · Slot: 12:30 PM')}
-                          className="p-2 rounded bg-primary-container text-on-primary text-center transition-transform hover:scale-105 cursor-pointer"
-                        >
-                          <div className="font-label-numeric text-label-numeric font-bold">G2</div>
-                          <div className="font-caption text-[10px] opacity-80">4p · Occ</div>
-                        </button>
-                        <button
-                          onClick={() => setInspectTableInfo('G3: Sundaram Estate (6p) · Slot: 12:28 PM')}
-                          className="p-2 rounded bg-primary-container text-on-primary text-center transition-transform hover:scale-105 cursor-pointer"
-                        >
-                          <div className="font-label-numeric text-label-numeric font-bold">G3</div>
-                          <div className="font-caption text-[10px] opacity-80">6p · Occ</div>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Inspection Banner */}
-                  {inspectTableInfo && (
-                    <div className="mt-space-sm p-space-xs bg-surface-container-low rounded flex items-center justify-between text-caption font-caption">
-                      <span className="text-primary font-medium">{inspectTableInfo}</span>
-                      <button onClick={() => setInspectTableInfo(null)} className="text-on-surface-variant hover:text-primary cursor-pointer">
-                        ✕
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'G1', cap: '6p', state: 'free', info: 'G1: Available for VIP allocation' },
+                      { id: 'G2', cap: '4p', state: 'occ', info: 'G2: Occupied (4p) · 12:30 PM' },
+                      { id: 'G3', cap: '6p', state: 'occ', info: 'G3: Sundaram Estate (6p) · 12:28 PM' },
+                    ].map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setInspectTable(inspectTable === t.info ? null : t.info)}
+                        className={`p-2 rounded-lg text-center transition-all hover:scale-105 cursor-pointer border ${
+                          t.state === 'occ' ? 'bg-[#1E3932]/10 border-[#1E3932]/20 text-[#1E3932]' : 'bg-[#F7F5F0] border-[#E8E2D5] text-stone-500'
+                        }`}
+                      >
+                        <div className="text-xs font-bold">{t.id}</div>
+                        <div className="text-[10px] mt-0.5 opacity-75">{t.cap} · {t.state === 'occ' ? 'Occ' : 'Free'}</div>
                       </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Atmosphere Card */}
-                <div className="bg-surface-container-lowest p-space-md rounded shadow-sm relative overflow-hidden border border-surface-container">
-                  <div className="relative h-44 rounded overflow-hidden mb-space-sm">
-                    <img
-                      alt="Warm sunlight filtering through Victorian glasshouse dining hall"
-                      className="w-full h-full object-cover"
-                      src="https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?auto=format&fit=crop&w=800&q=80"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-transparent to-transparent flex items-end p-space-sm">
-                      <span className="font-title-editorial text-title-editorial text-on-primary">Poes Garden Flagship</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-caption font-caption text-on-surface-variant">
-                    <span>Air Temp: 22.4°C</span>
-                    <span>Acoustic: 52 dB (Quiet)</span>
-                    <span>Petpooja Ping: 14ms</span>
+                    ))}
                   </div>
                 </div>
 
+                {/* Inspect banner */}
+                {inspectTable && (
+                  <div className="flex items-center justify-between bg-[#F7F5F0] border border-[#E8E2D5] rounded-lg px-3 py-2">
+                    <span className="text-xs text-[#1E3932] font-medium">{inspectTable}</span>
+                    <button onClick={() => setInspectTable(null)} className="text-stone-400 hover:text-stone-600 cursor-pointer ml-2 shrink-0">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          </section>
 
+            {/* Atmosphere Card */}
+            <div className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm overflow-hidden">
+              <div className="relative h-36">
+                <img
+                  src="https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?auto=format&fit=crop&w=800&q=80"
+                  alt="Poes Garden Flagship"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1E3932]/80 via-transparent to-transparent flex items-end p-3">
+                  <span className="text-sm font-semibold text-white">Poes Garden Flagship</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5 text-[11px] text-stone-400">
+                <span>Air: 22.4°C</span>
+                <span>Acoustic: 52 dB</span>
+                <span>Status: Online</span>
+              </div>
+            </div>
+
+          </div>
         </div>
       </main>
 
-      {/* Rapid Walk-in Modal Overlay */}
-      {isWalkinModalOpen && (
-        <div className="fixed inset-0 z-50 bg-primary/40 backdrop-blur-sm flex items-center justify-center p-space-md">
-          <div className="bg-surface-container-lowest max-w-lg w-full rounded p-space-lg shadow-xl relative border border-surface-container">
-            <div className="flex items-center justify-between pb-space-sm">
-              <div className="flex flex-col">
-                <span className="font-label-caps text-label-caps uppercase text-secondary font-bold">Petpooja Fast-Lane</span>
-                <h3 className="font-headline-sm text-headline-sm text-primary font-semibold">Immediate Table Allocation</h3>
+      {/* ── Walk-In Modal ── */}
+      {isWalkinOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-[#E8E2D5]">
+            <div className="flex items-center justify-between p-5 border-b border-[#E8E2D5]">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#C5A880]">Rapid Seating</p>
+                <h3 className="text-base font-semibold text-[#1E3932] mt-0.5">Immediate Table Allocation</h3>
               </div>
-              <button onClick={() => setIsWalkinModalOpen(false)} className="w-8 h-8 rounded-full bg-surface-container text-on-surface-variant hover:text-primary flex items-center justify-center cursor-pointer">
-                ✕
+              <button onClick={() => setIsWalkinOpen(false)} className="w-8 h-8 rounded-full bg-[#F7F5F0] flex items-center justify-center text-stone-400 hover:text-stone-600 cursor-pointer">
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleWalkInSubmit} className="flex flex-col gap-space-sm mt-space-sm">
-              <div className="flex flex-col gap-1">
-                <label className="font-label-caps text-label-caps text-on-surface-variant uppercase">Guest / Host Full Name</label>
+            <form onSubmit={handleWalkin} className="p-5 space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">Guest / Host Full Name</label>
                 <input
-                  type="text"
-                  required
-                  value={walkinName}
-                  onChange={(e) => setWalkinName(e.target.value)}
+                  type="text" required value={walkinName} onChange={e => setWalkinName(e.target.value)}
                   placeholder="e.g. Vikramaditya Reddy"
-                  className="h-10 px-space-xs bg-surface-container rounded text-body-sm font-body-sm text-primary focus:outline-none border border-surface-container-high"
+                  className="w-full h-10 px-3 bg-[#F7F5F0] border border-[#E8E2D5] rounded-lg text-sm text-[#1E3932] focus:outline-none focus:border-[#1E3932]"
                 />
               </div>
-
-              <div className="grid grid-cols-2 gap-space-sm">
-                <div className="flex flex-col gap-1">
-                  <label className="font-label-caps text-label-caps text-on-surface-variant uppercase">Party Size</label>
-                  <select
-                    value={walkinSize}
-                    onChange={(e) => setWalkinSize(e.target.value)}
-                    className="h-10 px-space-xs bg-surface-container rounded text-body-sm font-body-sm text-primary focus:outline-none border border-surface-container-high"
-                  >
-                    <option>2 Guests</option>
-                    <option>3 Guests</option>
-                    <option>4 Guests</option>
-                    <option>6 Guests</option>
-                    <option>8+ Private Room</option>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">Party Size</label>
+                  <select value={walkinSize} onChange={e => setWalkinSize(e.target.value)} className="w-full h-10 px-3 bg-[#F7F5F0] border border-[#E8E2D5] rounded-lg text-sm text-[#1E3932] focus:outline-none cursor-pointer">
+                    <option>2 Guests</option><option>3 Guests</option><option>4 Guests</option><option>6 Guests</option><option>8+ Private Room</option>
                   </select>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label className="font-label-caps text-label-caps text-on-surface-variant uppercase">Target Sanctuary Zone</label>
-                  <select
-                    value={walkinZone}
-                    onChange={(e) => setWalkinZone(e.target.value)}
-                    className="h-10 px-space-xs bg-surface-container rounded text-body-sm font-body-sm text-primary focus:outline-none border border-surface-container-high"
-                  >
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">Zone</label>
+                  <select value={walkinZone} onChange={e => setWalkinZone(e.target.value)} className="w-full h-10 px-3 bg-[#F7F5F0] border border-[#E8E2D5] rounded-lg text-sm text-[#1E3932] focus:outline-none cursor-pointer">
                     <option>The Conservatory (Table C3)</option>
                     <option>The Glasshouse Bay (Table G1)</option>
                     <option>Verandah Garden (Table V4)</option>
                   </select>
                 </div>
               </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="font-label-caps text-label-caps text-on-surface-variant uppercase">Notes & Allergens</label>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-400 mb-1.5">Notes & Allergens</label>
                 <input
-                  type="text"
-                  value={walkinNotes}
-                  onChange={(e) => setWalkinNotes(e.target.value)}
+                  type="text" value={walkinNotes} onChange={e => setWalkinNotes(e.target.value)}
                   placeholder="e.g. Gluten sensitive, prefers quiet corner"
-                  className="h-10 px-space-xs bg-surface-container rounded text-body-sm font-body-sm text-primary focus:outline-none border border-surface-container-high"
+                  className="w-full h-10 px-3 bg-[#F7F5F0] border border-[#E8E2D5] rounded-lg text-sm text-[#1E3932] focus:outline-none focus:border-[#1E3932]"
                 />
               </div>
-
-              <div className="pt-space-sm flex items-center justify-end gap-space-xs">
-                <button
-                  type="button"
-                  onClick={() => setIsWalkinModalOpen(false)}
-                  className="h-10 px-space-md rounded bg-surface-container hover:bg-surface-container-high text-on-surface font-label-caps text-label-caps uppercase transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="h-10 px-space-md rounded bg-primary-container hover:bg-primary text-on-primary font-label-caps text-label-caps uppercase transition-colors shadow-sm cursor-pointer"
-                >
-                  Seat & Open Petpooja KOT
-                </button>
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <button type="button" onClick={() => setIsWalkinOpen(false)} className="h-10 px-4 bg-[#F7F5F0] border border-[#E8E2D5] text-sm text-stone-600 rounded-lg hover:bg-[#EDE9E0] transition-colors cursor-pointer">Cancel</button>
+                <button type="submit" className="h-10 px-4 bg-[#1E3932] text-white text-sm font-semibold rounded-lg hover:bg-[#152d26] transition-colors cursor-pointer">Seat Guest</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Notification Toast */}
-      {toast.show && (
-        <div className="fixed bottom-6 right-6 z-50 bg-primary text-on-primary px-space-md py-space-sm rounded shadow-lg flex items-center gap-space-sm animate-bounce">
-          <span className="material-symbols-outlined text-secondary text-[20px]">verified</span>
-          <span className="font-body-sm text-body-sm">{toast.message}</span>
+      {/* ── Toast ── */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#1E3932] text-white px-4 py-3 rounded-xl shadow-xl border border-[#C5A880]/30 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <CheckCircle2 className="w-4 h-4 text-[#C5A880] shrink-0" />
+          <span className="text-xs font-medium">{toast}</span>
         </div>
       )}
 
-      {/* Footer */}
-      <footer className="w-full bg-surface-container-lowest py-space-2xl border-t border-surface-container">
-        <div className="w-full px-space-md lg:px-margin-desktop">
-          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-space-lg pb-space-lg border-b border-surface-container-low">
-            <div className="flex flex-col gap-space-2xs">
-              <span className="font-title-editorial text-title-editorial text-primary font-semibold">Mayflower Sanctuaries</span>
-              <span className="font-caption text-caption text-on-surface-variant">Haute Gastronomy Enterprise Resource & Guest Experience Infrastructure · Chennai Flagships</span>
+      {/* ── Footer ── */}
+      <footer className="border-t border-[#E8E2D5] bg-white mt-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-[#1E3932]">Mayflower Sanctuaries</p>
+              <p className="text-xs text-stone-400 mt-0.5">Haute Gastronomy · Chennai Flagships</p>
             </div>
-            <div className="flex flex-wrap items-center gap-space-sm">
-              <span className="font-label-caps text-label-caps text-on-surface-variant uppercase">Switch Access Role:</span>
-              <div className="flex flex-wrap gap-space-2xs">
-                <button onClick={() => onSwitchRole?.('owner-management')} className="px-2 py-1 bg-surface-container text-on-surface font-caption text-caption rounded hover:bg-surface-container-high transition-colors cursor-pointer">Owner</button>
-                <button onClick={() => onSwitchRole?.('admin-suite')} className="px-2 py-1 bg-surface-container text-on-surface font-caption text-caption rounded hover:bg-surface-container-high transition-colors cursor-pointer">Admin</button>
-                <button onClick={() => onSwitchRole?.('manager-operations')} className="px-2 py-1 bg-primary-container text-on-primary font-caption text-caption rounded font-semibold cursor-pointer">Manager</button>
-                <button onClick={() => onSwitchRole?.('chef-kitchen')} className="px-2 py-1 bg-surface-container text-on-surface font-caption text-caption rounded hover:bg-surface-container-high transition-colors cursor-pointer">Chef</button>
-                <button onClick={() => onSwitchRole?.('hr-roster')} className="px-2 py-1 bg-surface-container text-on-surface font-caption text-caption rounded hover:bg-surface-container-high transition-colors cursor-pointer">HR</button>
-                <button onClick={() => onSwitchRole?.('accountant-ledger')} className="px-2 py-1 bg-surface-container text-on-surface font-caption text-caption rounded hover:bg-surface-container-high transition-colors cursor-pointer">Accountant</button>
-                <button onClick={() => onSwitchRole?.('customer-portal')} className="px-2 py-1 bg-secondary-container text-on-secondary-container font-caption text-caption rounded font-semibold cursor-pointer">VIP Guest</button>
+            {onSwitchRole && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">Switch Role:</span>
+                {[
+                  { label: 'Owner', path: 'owner-management' },
+                  { label: 'Admin', path: 'admin-suite' },
+                  { label: 'Chef', path: 'chef-kitchen' },
+                  { label: 'HR', path: 'hr-roster' },
+                  { label: 'Accountant', path: 'accountant-ledger' },
+                ].map(r => (
+                  <button key={r.path} onClick={() => onSwitchRole(r.path)} className="px-2.5 py-1 bg-[#F7F5F0] border border-[#E8E2D5] text-xs text-stone-600 rounded-lg hover:bg-[#EDE9E0] transition-colors cursor-pointer">
+                    {r.label}
+                  </button>
+                ))}
               </div>
-            </div>
+            )}
           </div>
-          <div className="pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-sm text-caption font-caption text-on-surface-variant">
-            <div className="flex items-center gap-space-md">
-              <span className="flex items-center gap-1">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary-container"></span> Petpooja REST API v2.4 (Active 14ms)
-              </span>
-              <span>SOC2 Type II Certified</span>
-              <span>Chennai GSTIN Compliant</span>
-            </div>
-            <div>© {new Date().getFullYear()} Mayflower Hospitality Group India LLP. All Privileges Reserved.</div>
-          </div>
+          <p className="text-[11px] text-stone-400 mt-4 text-center sm:text-left">
+            © {new Date().getFullYear()} Mayflower Hospitality Group India LLP. All Privileges Reserved.
+          </p>
         </div>
       </footer>
+
     </div>
   );
 };

@@ -1,5 +1,4 @@
-import React from 'react';
-import { Calendar, ArrowUp } from 'lucide-react';
+import { Calendar, ArrowUp, Facebook, Linkedin } from 'lucide-react';
 import { OUTLETS } from '../data/restaurantData';
 
 interface FooterProps {
@@ -182,12 +181,27 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit, canRese
             <span className="font-medium text-[#FAF7F2]">Mon - Sun: 11:00 AM — 11:00 PM</span>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4">
             <span className="text-[10px] uppercase tracking-widest opacity-50 font-bold">Connect:</span>
-            <div className="flex gap-4 font-medium text-[#FAF7F2]/90">
-              <span className="hover:text-white cursor-pointer">Instagram</span>
-              <span className="hover:text-white cursor-pointer">Facebook</span>
-              <span onClick={() => onNavigate('contact')} className="hover:text-white cursor-pointer">Get in Touch</span>
+            <div className="flex items-center gap-3">
+              <a
+                href="https://www.facebook.com/themayflowerchennai"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Facebook"
+                className="text-[#FAF7F2]/80 hover:text-white transition-colors duration-200 p-1 cursor-pointer inline-flex items-center justify-center"
+              >
+                <Facebook className="w-4 h-4" />
+              </a>
+              <a
+                href="https://www.linkedin.com/company/the-maflower-cafe"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="LinkedIn"
+                className="text-[#FAF7F2]/80 hover:text-white transition-colors duration-200 p-1 cursor-pointer inline-flex items-center justify-center"
+              >
+                <Linkedin className="w-4 h-4" />
+              </a>
             </div>
           </div>
         </div>

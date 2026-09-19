@@ -15,6 +15,7 @@ export interface SeedReservation {
   status: 'Pending' | 'Confirmed' | 'Seated' | 'Completed' | 'Cancelled';
   bookedAt: string;
   specialRequests?: string;
+  assignedTable?: string;
 }
 
 export interface SeedTask {
@@ -55,6 +56,10 @@ export interface SeedFranchiseEnquiry {
   status: 'New' | 'Under Review' | 'Contacted' | 'Qualified' | 'Closed';
   internalNotes?: string;
   createdAt: string;
+  investmentBudget?: string;
+  priorExperience?: boolean;
+  customerId?: string;
+  documents?: Array<{ id: string; fileName: string; storagePath: string; uploadedAt: string }>;
 }
 
 export interface SeedAuditLog {

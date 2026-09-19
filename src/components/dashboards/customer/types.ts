@@ -21,10 +21,11 @@ export interface Reservation {
   time: string;
   experienceType: string;
   guests: number;
-  status: 'CONFIRMED' | 'PENDING' | 'CANCELLED';
+  status: 'CONFIRMED' | 'PENDING' | 'CANCELLED' | 'SEATED' | 'COMPLETED';
   imageUrl: string;
   notes?: string;
   sommelierPairing?: boolean;
+  assignedTable?: string;
 }
 
 export interface ReviewMemory {

@@ -114,8 +114,9 @@ export interface UserReservationRecord {
   timeSlot: string;
   guests: number;
   seatingArea: string;
-  status: 'Confirmed' | 'Completed';
+  status: 'Pending' | 'Confirmed' | 'Seated' | 'Completed' | 'Cancelled';
   bookedAt: string;
+  assignedTable?: string;
 }
 
 export type UserRole = 'SuperAdmin' | 'Owner' | 'Admin' | 'Manager' | 'Chef' | 'HR' | 'Accountant' | 'Customer';

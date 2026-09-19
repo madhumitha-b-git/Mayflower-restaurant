@@ -18,6 +18,8 @@ import { PatronProfileModal } from './customer/PatronProfileModal';
 import { CancelModal } from './customer/CancelModal';
 import { ModifyReservationModal } from './customer/ModifyReservationModal';
 import { Toast, ToastMessage } from './customer/Toast';
+import { Building2, PlusCircle, FileText } from 'lucide-react';
+import { FranchiseEnquiryForm } from '../FranchiseEnquiryForm';
 
 interface Props {
   user: UserProfile;
@@ -110,6 +112,8 @@ export const CustomerDashboard: React.FC<Props> = ({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [cancelingReservation, setCancelingReservation] = useState<Reservation | null>(null);
   const [modifyingReservation, setModifyingReservation] = useState<Reservation | null>(null);
+  const [isFranchiseModalOpen, setIsFranchiseModalOpen] = useState(false);
+  const [franchiseEnquiries, setFranchiseEnquiries] = useState<any[]>([]);
 
   // Notification Toast State
   const [toast, setToast] = useState<ToastMessage | null>(null);
@@ -125,10 +129,12 @@ export const CustomerDashboard: React.FC<Props> = ({
   const fetchAll = useCallback(async () => {
     try {
       const provider = getDataProvider();
-      const [providerRes, providerFb] = await Promise.all([
+      const [providerRes, providerFb, myFranchises] = await Promise.all([
         provider.getReservations(user).catch(() => []),
         provider.getFeedback(user).catch(() => []),
+        provider.getMyFranchiseEnquiries ? provider.getMyFranchiseEnquiries(user).catch(() => []) : Promise.resolve([]),
       ]);
+      setFranchiseEnquiries(myFranchises || []);
 
       // Fetch customer row for preferences
       try {
@@ -548,6 +554,94 @@ export const CustomerDashboard: React.FC<Props> = ({
         {/* Atmosphere Showcase */}
         <ExperienceShowcase onExploreVenues={() => setIsVenuesOpen(true)} />
 
+        {/* Franchise Partnership Tracking Section */}
+        <section className="bg-white border border-[#E8E2D5] rounded-2xl p-6 sm:p-7 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[#E8E2D5]">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-[#2D4030]/10 flex items-center justify-center text-[#2D4030]">
+                <Building2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-serif text-lg font-normal text-[#1A1A1A]">Franchise Partnership Tracking</h3>
+                <p className="text-xs text-stone-500">Track status of your Mayflower Sanctuary franchise applications</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsFranchiseModalOpen(true)}
+              className="px-4 py-2 bg-[#2D4030] hover:bg-[#1F3022] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors cursor-pointer flex items-center justify-center space-x-2 shrink-0"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Apply for Franchise</span>
+            </button>
+          </div>
+
+          <div className="mt-5">
+            {franchiseEnquiries.length === 0 ? (
+              <div className="text-center py-8 px-4 bg-[#FAF7F2] rounded-xl border border-dashed border-[#E8E2D5]">
+                <Building2 className="w-8 h-8 text-stone-400 mx-auto mb-2" />
+                <p className="text-sm font-medium text-stone-700">No active franchise applications</p>
+                <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto">
+                  Interested in bringing The Mayflower dining sanctuary to your city? Submit an enquiry to get started.
+                </p>
+                <button
+                  onClick={() => setIsFranchiseModalOpen(true)}
+                  className="mt-4 px-4 py-2 border border-[#2D4030] text-[#2D4030] hover:bg-[#2D4030] hover:text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Submit Franchise Enquiry
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {franchiseEnquiries.map((enq: any) => {
+                  const statusColors: Record<string, string> = {
+                    'New': 'bg-stone-100 text-stone-700 border-stone-300',
+                    'Under Review': 'bg-blue-50 text-blue-700 border-blue-200',
+                    'Contacted': 'bg-amber-50 text-amber-700 border-amber-200',
+                    'Qualified': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                    'Closed': 'bg-rose-50 text-rose-700 border-rose-200',
+                  };
+                  return (
+                    <div key={enq.id} className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8E2D5] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-sm text-[#1A1A1A]">{enq.cityInterested || 'Chennai'} Sanctuary</span>
+                          <span className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-0.5 rounded-full border ${statusColors[enq.status] || 'bg-stone-100 text-stone-700'}`}>
+                            {enq.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-500 mt-1">
+                          Budget: <span className="font-medium text-stone-700">{enq.investmentBudget || '₹1.5 Cr – ₹2.5 Cr'}</span> · Submitted on {enq.createdAt}
+                        </p>
+                        {enq.documents && enq.documents.length > 0 && (
+                          <div className="flex items-center space-x-2 mt-2">
+                            <span className="text-[11px] text-stone-400">Attached Documents:</span>
+                            {enq.documents.map((doc: any, i: number) => (
+                              <span key={i} className="inline-flex items-center text-[10px] bg-white px-2 py-0.5 rounded border border-[#E8E2D5] text-stone-600">
+                                <FileText className="w-3 h-3 mr-1 text-[#2D4030]" />
+                                {doc.fileName}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[11px] text-stone-400 block">Current Stage</span>
+                        <span className="text-xs font-semibold text-[#2D4030]">
+                          {enq.status === 'New' && 'Application Received'}
+                          {enq.status === 'Under Review' && 'Operations Team Reviewing'}
+                          {enq.status === 'Contacted' && 'Discussion In Progress'}
+                          {enq.status === 'Qualified' && 'Approved for Onboarding'}
+                          {enq.status === 'Closed' && 'Enquiry Completed'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* My Reviews */}
         <ReviewsSection
           reviews={reviews}
@@ -611,6 +705,17 @@ export const CustomerDashboard: React.FC<Props> = ({
         reservation={modifyingReservation}
         onSaveModifiedReservation={handleSaveModifiedReservation}
       />
+
+      {isFranchiseModalOpen && (
+        <FranchiseEnquiryForm
+          user={user}
+          onClose={() => setIsFranchiseModalOpen(false)}
+          onSuccess={() => {
+            setIsFranchiseModalOpen(false);
+            fetchAll();
+          }}
+        />
+      )}
 
       {/* Confirmation Toast */}
       <Toast toast={toast} onDismiss={() => setToast(null)} />

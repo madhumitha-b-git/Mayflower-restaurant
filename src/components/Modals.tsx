@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ActiveModalType } from '../types';
 import { OUTLETS, BEVERAGE_ITEMS } from '../data/restaurantData';
 import { X, CheckCircle2, Star, Coffee, Send, Sparkles } from 'lucide-react';
+import { FranchiseEnquiryForm } from './FranchiseEnquiryForm';
 
 interface ModalsProps {
   activeModal: ActiveModalType;
@@ -12,17 +13,11 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, onClose }) => {
   const [submitted, setSubmitted] = useState(false);
   const [rating, setRating] = useState<number>(5);
 
-  // Franchise form state
-  const [franchiseForm, setFranchiseForm] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    city: '',
-    investment: '₹1.5 Cr – ₹2.5 Cr',
-    vision: ''
-  });
-
   if (activeModal === 'none') return null;
+
+  if (activeModal === 'franchise') {
+    return <FranchiseEnquiryForm user={null} onClose={onClose} />;
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,148 +38,24 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, onClose }) => {
         <button
           onClick={onClose}
           className="absolute top-5 right-5 w-9 h-9 rounded-full bg-[#F5F1EB] text-[#1A1A1A] hover:bg-[#E8E4DB] flex items-center justify-center transition-colors cursor-pointer"
-          aria-label="Close dialog"
         >
           <X className="w-5 h-5" />
         </button>
 
         {submitted ? (
-          <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-9 h-9" />
+          <div className="text-center py-10 animate-scaleIn">
+            <div className="w-20 h-20 rounded-full bg-[#2D4030]/10 flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="w-10 h-10 text-[#2D4030]" />
             </div>
-            <h3 className="font-serif text-2xl font-semibold text-[#1A1A1A]">
-              {activeModal === 'franchise' ? 'Franchise Enquiry Received' : 'Thank You for Connecting'}
+            <h3 className="font-serif text-3xl font-semibold text-[#1A1A1A] mb-3">
+              Received With Thanks
             </h3>
-            {activeModal === 'franchise' ? (
-              <div className="text-sm text-[#4A4A4A] max-w-sm mx-auto space-y-2">
-                <p>
-                  Thank you, <strong className="text-[#1A1A1A]">{franchiseForm.name || 'Partner'}</strong>! Your franchise enquiry for <strong className="text-[#1A1A1A]">{franchiseForm.city || 'your region'}</strong> has been registered with our expansion desk.
-                </p>
-                <p className="text-xs text-[#5A5A40]">
-                  Our business director will reach out to you directly at <span className="font-medium text-[#1A1A1A]">{franchiseForm.phone}</span> or <span className="font-medium text-[#1A1A1A]">{franchiseForm.email}</span>.
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-[#4A4A4A] max-w-xs mx-auto">
-                Your message has reached our hospitality desk. A member of the Mayflower team will respond shortly.
-              </p>
-            )}
+            <p className="text-sm text-[#5A5A40] max-w-[280px] mx-auto leading-relaxed">
+              Your message has reached our hospitality desk. A member of the Mayflower team will respond shortly.
+            </p>
           </div>
         ) : (
           <>
-            {/* FRANCHISE MODAL */}
-            {activeModal === 'franchise' && (
-              <div className="space-y-6">
-                <div>
-                  <span className="text-[10px] uppercase tracking-[0.25em] text-[#5A5A40] font-bold block">
-                    Partnership Opportunity
-                  </span>
-                  <h3 className="font-serif text-2xl font-semibold text-[#1A1A1A] mt-1">
-                    Grow With Mayflower
-                  </h3>
-                  <p className="text-xs text-[#4A4A4A] mt-1">
-                    Join us in creating culinary sanctuaries across India. Share your details below and our leadership team will connect with you.
-                  </p>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-                  <div>
-                    <label className="block uppercase tracking-wider text-[#5A5A40] font-bold mb-1">
-                      Full Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={franchiseForm.name}
-                      onChange={(e) => setFranchiseForm({ ...franchiseForm, name: e.target.value })}
-                      placeholder="e.g. Vikramaditya Reddy"
-                      className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block uppercase tracking-wider text-[#5A5A40] font-bold mb-1">
-                        Email Address *
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        value={franchiseForm.email}
-                        onChange={(e) => setFranchiseForm({ ...franchiseForm, email: e.target.value })}
-                        placeholder="vikram@example.com"
-                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block uppercase tracking-wider text-[#5A5A40] font-bold mb-1">
-                        Phone Number *
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        value={franchiseForm.phone}
-                        onChange={(e) => setFranchiseForm({ ...franchiseForm, phone: e.target.value })}
-                        placeholder="+91 98400 12345"
-                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block uppercase tracking-wider text-[#5A5A40] font-bold mb-1">
-                        Target City / Region *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={franchiseForm.city}
-                        onChange={(e) => setFranchiseForm({ ...franchiseForm, city: e.target.value })}
-                        placeholder="e.g. Bengaluru, Hyderabad, Coimbatore"
-                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block uppercase tracking-wider text-[#5A5A40] font-bold mb-1">
-                        Estimated Investment
-                      </label>
-                      <select 
-                        value={franchiseForm.investment}
-                        onChange={(e) => setFranchiseForm({ ...franchiseForm, investment: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
-                      >
-                        <option>₹1.5 Cr – ₹2.5 Cr</option>
-                        <option>₹2.5 Cr – ₹4.0 Cr</option>
-                        <option>Above ₹4.0 Cr</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block uppercase tracking-wider text-[#5A5A40] font-bold mb-1">
-                      Proposed Space & Vision
-                    </label>
-                    <textarea
-                      rows={3}
-                      value={franchiseForm.vision}
-                      onChange={(e) => setFranchiseForm({ ...franchiseForm, vision: e.target.value })}
-                      placeholder="Property details (carpet area, standalone/mall), culinary background, or planned timeline..."
-                      className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3.5 rounded-full bg-[#1A1A1A] hover:bg-[#333333] text-white text-[11px] uppercase tracking-widest font-bold transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer mt-2"
-                  >
-                    <Send className="w-3.5 h-3.5 text-[#D1CDBC]" />
-                    <span>Submit Franchise Enquiry</span>
-                  </button>
-                </form>
-              </div>
-            )}
 
             {/* FEEDBACK MODAL */}
             {activeModal === 'feedback' && (

@@ -14,6 +14,8 @@ export interface DataProvider {
   createReservation(actor: UserProfile, payload: Partial<SeedReservation>): Promise<SeedReservation>;
   /** Update reservation status (Approve, Confirm, Cancel, Complete) */
   updateReservationStatus(actor: UserProfile, reservationId: string, status: 'Pending' | 'Confirmed' | 'Seated' | 'Completed' | 'Cancelled'): Promise<SeedReservation>;
+  /** Manager assigns a specific table to a reservation */
+  assignTable(actor: UserProfile, reservationId: string, tableId: string): Promise<SeedReservation>;
 
   /** Fetch customer feedback filtered by policies */
   getFeedback(actor: UserProfile): Promise<SeedFeedback[]>;
@@ -33,10 +35,23 @@ export interface DataProvider {
   /** Update checklist task status (Completed, In Progress, Escalated) */
   updateTaskStatus(actor: UserProfile, taskId: string, status: 'Pending' | 'In Progress' | 'Completed' | 'Escalated', remarks?: string): Promise<SeedTask>;
 
+  /** Upload photo evidence for a completed task */
+  uploadTaskEvidence(actor: UserProfile, taskId: string, file: File, geoCoords?: { lat: number; lng: number }): Promise<{ id: string; storagePath: string; capturedAt: string }>;
+  /** Get evidence items for a task */
+  getTaskEvidence(actor: UserProfile, taskId: string): Promise<Array<{ id: string; storagePath: string; fileType: string; uploadedBy: string; geoLat?: number; geoLng?: number; capturedAt: string }>>;
+
   /** Fetch franchise enquiries (Admin/Owner/SuperAdmin only) */
   getFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]>;
+  /** Fetch customer's own franchise enquiries */
+  getMyFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]>;
+  /** Update franchise enquiry status and notes (Admin/Owner/SuperAdmin only) */
+  updateFranchiseEnquiryStatus(actor: UserProfile, enquiryId: string, status: string, internalNotes?: string): Promise<SeedFranchiseEnquiry>;
   /** Submit public franchise enquiry */
-  submitFranchiseEnquiry(payload: { applicantName: string; email: string; phone?: string; cityInterested?: string; message?: string }): Promise<SeedFranchiseEnquiry>;
+  submitFranchiseEnquiry(payload: { applicantName: string; email: string; phone?: string; cityInterested?: string; message?: string; investmentBudget?: string; priorExperience?: boolean; customerId?: string }): Promise<SeedFranchiseEnquiry>;
+  /** Upload documents for a franchise enquiry */
+  uploadFranchiseDocuments(actor: UserProfile, enquiryId: string, files: File[]): Promise<Array<{ id: string; fileName: string; storagePath: string }>>;
+  /** Fetch documents for a franchise enquiry */
+  getFranchiseDocuments(actor: UserProfile, enquiryId: string): Promise<Array<{ id: string; fileName: string; storagePath: string; uploadedAt: string }>>;
 
   /** Fetch system audit logs */
   getAuditLogs(actor: UserProfile): Promise<SeedAuditLog[]>;

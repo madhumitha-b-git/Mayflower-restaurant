@@ -14,6 +14,7 @@ import { AuthModal } from './components/AuthModal';
 import { LoyaltyDashboardModal } from './components/LoyaltyDashboardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { RoleDashboard } from './components/dashboards/RoleDashboard';
+import { FranchiseEnquiryForm } from './components/FranchiseEnquiryForm';
 import { ActiveModalType, UserProfile } from './types';
 import { WelcomeEmailData } from './data/userStorage';
 import { fetchUserProfile, getSupabaseCurrentUser, supabaseLogout } from './lib/authService';
@@ -111,6 +112,8 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const [intentAfterLogin, setIntentAfterLogin] = useState<string | null>(null);
+
   const handleOpenDashboard = () => {
     setActiveView('dashboard');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -119,9 +122,15 @@ export default function App() {
   const handleLoginSuccess = (user: UserProfile, emailData?: WelcomeEmailData) => {
     setCurrentUser(user);
     if (emailData) setWelcomeEmail(emailData);
-    setActiveModal('none');
-    setActiveView('dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    if (intentAfterLogin === 'franchise') {
+      setActiveModal('franchise');
+      setIntentAfterLogin(null);
+    } else {
+      setActiveModal('none');
+      setActiveView('dashboard');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleLogout = () => {
@@ -132,6 +141,15 @@ export default function App() {
     setWelcomeEmail(null);
     setActiveModal('none');
     setActiveView('website');
+  };
+
+  const handleOpenFranchise = () => {
+    if (!currentUser) {
+      setIntentAfterLogin('franchise');
+      setActiveModal('auth');
+    } else {
+      setActiveModal('franchise');
+    }
   };
 
   const handleUpdateUser = (updatedUser: UserProfile) => {
@@ -160,7 +178,7 @@ export default function App() {
         onNavigate={scrollToSection}
         onOpenReservations={() => handleOpenReservations()}
         onBackToWebsite={handleBackToWebsite}
-        onOpenFranchise={() => setActiveModal('franchise')}
+        onOpenFranchise={handleOpenFranchise}
         onOpenAuth={() => setActiveModal('auth')}
         onOpenLoyalty={() => setActiveModal('loyalty')}
         onOpenDashboard={handleOpenDashboard}
@@ -219,8 +237,9 @@ export default function App() {
 
       <AuthModal
         isOpen={activeModal === 'auth'}
-        onClose={() => setActiveModal('none')}
+        onClose={() => { setActiveModal('none'); setIntentAfterLogin(null); }}
         onLoginSuccess={handleLoginSuccess}
+        initialMode={intentAfterLogin ? 'login' : 'register'}
       />
 
       <LoyaltyDashboardModal
@@ -231,6 +250,13 @@ export default function App() {
         onLogout={handleLogout}
         onNavigateToGiftCards={() => scrollToSection('moment-cards')}
       />
+
+      {activeModal === 'franchise' && (
+        <FranchiseEnquiryForm
+          user={currentUser}
+          onClose={() => setActiveModal('none')}
+        />
+      )}
 
       <MobileBottomNav
         activeView={activeView}

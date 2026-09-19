@@ -137,6 +137,20 @@ export class SupabaseDataProvider implements DataProvider {
     return this.fallback.updateReservationStatus(actor, reservationId, status);
   }
 
+  async assignTable(actor: UserProfile, reservationId: string, tableId: string): Promise<SeedReservation> {
+    if (!canManageReservation(actor)) {
+      throw new Error('Denied: Insufficient permission to manage reservation status');
+    }
+    try {
+      const { ReservationsService } = await import('../modules/reservations/reservations.service');
+      const { error } = await ReservationsService.approveAndAssignTable(reservationId, tableId, actor.id);
+      if (!error) {
+        this.emit('reservations');
+      }
+    } catch {}
+    return this.fallback.assignTable(actor, reservationId, tableId);
+  }
+
   async getFeedback(actor: UserProfile): Promise<SeedFeedback[]> {
     try {
       const { data, error } = await supabase.from('feedback').select('id, rating, message, status, created_at, outlet, user_profiles(name, email)').limit(50);
@@ -217,13 +231,178 @@ export class SupabaseDataProvider implements DataProvider {
     return this.fallback.updateTaskStatus(actor, taskId, status, remarks);
   }
 
-  async getFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]> {
-    if (!canViewFranchiseEnquiries(actor)) throw new Error('Denied: Cannot view franchise enquiries');
-    return this.fallback.getFranchiseEnquiries(actor);
+  async uploadTaskEvidence(actor: UserProfile, taskId: string, file: File, geoCoords?: { lat: number; lng: number }): Promise<{ id: string; storagePath: string; capturedAt: string }> {
+    const { EvidenceService } = await import('../modules/operations/evidence.service');
+    const { data, error } = await EvidenceService.uploadTaskEvidence({
+      taskId,
+      file,
+      uploadedBy: actor.id,
+      geoLat: geoCoords?.lat,
+      geoLng: geoCoords?.lng
+    });
+    
+    if (error || !data) {
+      console.error('Supabase upload failed, falling back to mock', error);
+      return this.fallback.uploadTaskEvidence(actor, taskId, file, geoCoords);
+    }
+    
+    return {
+      id: data.id,
+      storagePath: data.storage_path,
+      capturedAt: data.captured_at
+    };
   }
 
-  async submitFranchiseEnquiry(payload: { applicantName: string; email: string; phone?: string; cityInterested?: string; message?: string }): Promise<SeedFranchiseEnquiry> {
-    return this.fallback.submitFranchiseEnquiry(payload);
+  async getTaskEvidence(actor: UserProfile, taskId: string): Promise<Array<{ id: string; storagePath: string; fileType: string; uploadedBy: string; geoLat?: number; geoLng?: number; capturedAt: string }>> {
+    const { EvidenceService } = await import('../modules/operations/evidence.service');
+    const { data, error } = await EvidenceService.getEvidenceByTask(taskId);
+    
+    if (error || !data || data.length === 0) {
+      return this.fallback.getTaskEvidence(actor, taskId);
+    }
+    
+    return data.map(row => ({
+      id: row.id,
+      storagePath: row.storage_path,
+      fileType: row.file_type,
+      uploadedBy: row.uploaded_by || '',
+      geoLat: row.geo_lat ?? undefined,
+      geoLng: row.geo_lng ?? undefined,
+      capturedAt: row.captured_at
+    }));
+  }
+
+  async getFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]> {
+    if (!canViewFranchiseEnquiries(actor)) throw new Error('Denied: Cannot view franchise enquiries');
+    const { data, error } = await supabase.from('franchise_enquiries').select('*, franchise_documents(*)').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data.map((d: any) => ({
+      id: d.id,
+      applicantName: d.applicant_name,
+      email: d.email,
+      phone: d.phone,
+      cityInterested: d.city_interested,
+      message: d.message,
+      status: d.status,
+      internalNotes: d.internal_notes,
+      createdAt: d.created_at,
+      customerId: d.customer_id,
+      investmentBudget: d.investment_budget,
+      priorExperience: d.prior_experience,
+      documents: d.franchise_documents?.map((doc: any) => ({
+        id: doc.id,
+        fileName: doc.file_name,
+        storagePath: doc.storage_path,
+        uploadedAt: doc.created_at
+      }))
+    }));
+  }
+
+  async getMyFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]> {
+    const { data, error } = await supabase.from('franchise_enquiries').select('*, franchise_documents(*)').eq('customer_id', actor.id).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data.map((d: any) => ({
+      id: d.id,
+      applicantName: d.applicant_name,
+      email: d.email,
+      phone: d.phone,
+      cityInterested: d.city_interested,
+      message: d.message,
+      status: d.status,
+      internalNotes: d.internal_notes,
+      createdAt: d.created_at,
+      customerId: d.customer_id,
+      investmentBudget: d.investment_budget,
+      priorExperience: d.prior_experience,
+      documents: d.franchise_documents?.map((doc: any) => ({
+        id: doc.id,
+        fileName: doc.file_name,
+        storagePath: doc.storage_path,
+        uploadedAt: doc.created_at
+      }))
+    }));
+  }
+
+  async updateFranchiseEnquiryStatus(actor: UserProfile, enquiryId: string, status: string, internalNotes?: string): Promise<SeedFranchiseEnquiry> {
+    if (!canViewFranchiseEnquiries(actor)) throw new Error('Denied: Cannot update franchise enquiries');
+    
+    // We can also use FeedbackFranchiseService.updateFranchiseEnquiry here if needed, but doing it directly is fine.
+    const updateData: any = { status };
+    if (internalNotes !== undefined) updateData.internal_notes = internalNotes;
+    
+    const { data, error } = await supabase.from('franchise_enquiries').update(updateData).eq('id', enquiryId).select().single();
+    if (error) throw error;
+    
+    return {
+      id: data.id,
+      applicantName: data.applicant_name,
+      email: data.email,
+      phone: data.phone,
+      cityInterested: data.city_interested,
+      message: data.message,
+      status: data.status,
+      internalNotes: data.internal_notes,
+      createdAt: data.created_at,
+      customerId: data.customer_id,
+      investmentBudget: data.investment_budget,
+      priorExperience: data.prior_experience
+    };
+  }
+
+  async submitFranchiseEnquiry(payload: { applicantName: string; email: string; phone?: string; cityInterested?: string; message?: string; investmentBudget?: string; priorExperience?: boolean; customerId?: string }): Promise<SeedFranchiseEnquiry> {
+    const { FeedbackFranchiseService } = await import('../modules/feedback/feedback-franchise.service');
+    const extraNotes = [
+      payload.investmentBudget ? `Budget: ${payload.investmentBudget}` : null,
+      payload.priorExperience !== undefined ? `Prior F&B Experience: ${payload.priorExperience ? 'Yes' : 'No'}` : null,
+      payload.message || null
+    ].filter(Boolean).join(' | ');
+
+    const res = await FeedbackFranchiseService.submitFranchiseEnquiry({
+      applicant_name: payload.applicantName,
+      email: payload.email,
+      phone: payload.phone,
+      city_interested: payload.cityInterested,
+      message: extraNotes || 'New franchise enquiry'
+    });
+    if (res.error || !res.data) throw res.error || new Error('Failed to submit');
+    return {
+      id: res.data.id,
+      applicantName: res.data.applicant_name,
+      email: res.data.email,
+      phone: res.data.phone || '',
+      cityInterested: res.data.city_interested || '',
+      message: res.data.message || '',
+      status: res.data.status as any,
+      createdAt: res.data.created_at,
+      customerId: payload.customerId || undefined,
+    };
+  }
+
+  async uploadFranchiseDocuments(_actor: UserProfile, enquiryId: string, files: File[]): Promise<Array<{ id: string; fileName: string; storagePath: string }>> {
+    const { FeedbackFranchiseService } = await import('../modules/feedback/feedback-franchise.service');
+    const results = [];
+    for (const file of files) {
+      const res = await FeedbackFranchiseService.uploadFranchiseDocument(enquiryId, file);
+      if (res.data) {
+        results.push({
+          id: res.data.id,
+          fileName: res.data.file_name,
+          storagePath: res.data.storage_path
+        });
+      }
+    }
+    return results;
+  }
+
+  async getFranchiseDocuments(_actor: UserProfile, enquiryId: string): Promise<Array<{ id: string; fileName: string; storagePath: string; uploadedAt: string }>> {
+    const { data, error } = await supabase.from('franchise_documents').select('*').eq('enquiry_id', enquiryId);
+    if (error) throw error;
+    return (data || []).map((doc: any) => ({
+      id: doc.id,
+      fileName: doc.file_name,
+      storagePath: doc.storage_path,
+      uploadedAt: doc.created_at
+    }));
   }
 
   async getAuditLogs(actor: UserProfile): Promise<SeedAuditLog[]> {

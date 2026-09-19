@@ -571,7 +571,7 @@ export const MENU_ITEMS: Dish[] = [
     price: 320,
     isVeg: true,
     isChefPick: false,
-    image: 'https://images.unsplash.com/photo-1541781774459-bb2af2f05b55?auto=format&fit=crop&w=800&q=80',
+    image: 'https://bakeitwithlove.com/wp-content/uploads/2025/06/4-Layer-Chocolate-Mousse-Cake-sq2.jpg',
     portion: 'Glass cup',
     calories: '360 kcal'
   },

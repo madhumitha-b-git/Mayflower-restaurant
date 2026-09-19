@@ -144,6 +144,22 @@ export class MockDataProvider implements DataProvider {
     return res;
   }
 
+  async assignTable(actor: UserProfile, reservationId: string, tableId: string): Promise<SeedReservation> {
+    const res = this.reservations.find(r => r.id === reservationId);
+    if (!res) throw new Error('Reservation not found');
+
+    if (!canManageReservation(actor, res)) {
+      throw new Error('Denied: Insufficient permission to assign table');
+    }
+
+    res.assignedTable = tableId;
+    res.status = 'Confirmed';
+    this.saveToStorage('reservations', this.reservations);
+    this.addAuditLog(actor, 'RESERVATION_TABLE_ASSIGNED', 'Reservation', res.id, { tableId });
+    this.emit('reservations', this.reservations);
+    return res;
+  }
+
   async getFeedback(actor: UserProfile): Promise<SeedFeedback[]> {
     return this.feedback.filter(f => canViewFeedback(actor, f));
   }
@@ -235,6 +251,32 @@ export class MockDataProvider implements DataProvider {
     return task;
   }
 
+  // Mock Evidence Store
+  private taskEvidence: Array<{ id: string; taskId: string; storagePath: string; fileType: string; uploadedBy: string; geoLat?: number; geoLng?: number; capturedAt: string }> = [];
+
+  async uploadTaskEvidence(actor: UserProfile, taskId: string, file: File, geoCoords?: { lat: number; lng: number }): Promise<{ id: string; storagePath: string; capturedAt: string }> {
+    const evidence = {
+      id: `ev-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      taskId,
+      storagePath: `mock/evidence/${taskId}/${file.name}`,
+      fileType: file.type,
+      uploadedBy: actor.id,
+      geoLat: geoCoords?.lat,
+      geoLng: geoCoords?.lng,
+      capturedAt: new Date().toISOString()
+    };
+    this.taskEvidence.push(evidence);
+    return {
+      id: evidence.id,
+      storagePath: evidence.storagePath,
+      capturedAt: evidence.capturedAt
+    };
+  }
+
+  async getTaskEvidence(_actor: UserProfile, taskId: string): Promise<Array<{ id: string; storagePath: string; fileType: string; uploadedBy: string; geoLat?: number; geoLng?: number; capturedAt: string }>> {
+    return this.taskEvidence.filter(e => e.taskId === taskId);
+  }
+
   async getFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]> {
     if (!canViewFranchiseEnquiries(actor)) {
       throw new Error('Denied: Only SuperAdmin, Owner, or Admin can view franchise enquiries');
@@ -242,7 +284,24 @@ export class MockDataProvider implements DataProvider {
     return this.franchiseEnquiries;
   }
 
-  async submitFranchiseEnquiry(payload: { applicantName: string; email: string; phone?: string; cityInterested?: string; message?: string }): Promise<SeedFranchiseEnquiry> {
+  async getMyFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]> {
+    return this.franchiseEnquiries.filter(e => e.customerId === actor.id);
+  }
+
+  async updateFranchiseEnquiryStatus(actor: UserProfile, enquiryId: string, status: string, internalNotes?: string): Promise<SeedFranchiseEnquiry> {
+    if (!canViewFranchiseEnquiries(actor)) {
+      throw new Error('Denied: Only SuperAdmin, Owner, or Admin can update franchise enquiries');
+    }
+    const idx = this.franchiseEnquiries.findIndex(e => e.id === enquiryId);
+    if (idx === -1) throw new Error('Enquiry not found');
+    const updated = { ...this.franchiseEnquiries[idx], status: status as any, internalNotes: internalNotes ?? this.franchiseEnquiries[idx].internalNotes };
+    this.franchiseEnquiries[idx] = updated;
+    this.saveToStorage('franchise', this.franchiseEnquiries);
+    this.emit('franchise', this.franchiseEnquiries);
+    return updated;
+  }
+
+  async submitFranchiseEnquiry(payload: { applicantName: string; email: string; phone?: string; cityInterested?: string; message?: string; investmentBudget?: string; priorExperience?: boolean; customerId?: string }): Promise<SeedFranchiseEnquiry> {
     const newEnq: SeedFranchiseEnquiry = {
       id: `fr-${Date.now()}`,
       applicantName: payload.applicantName,
@@ -250,7 +309,11 @@ export class MockDataProvider implements DataProvider {
       phone: payload.phone || '',
       cityInterested: payload.cityInterested || 'Chennai',
       message: payload.message || '',
+      investmentBudget: payload.investmentBudget,
+      priorExperience: payload.priorExperience,
+      customerId: payload.customerId,
       status: 'New',
+      documents: [],
       createdAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
     };
 
@@ -258,6 +321,33 @@ export class MockDataProvider implements DataProvider {
     this.saveToStorage('franchise', this.franchiseEnquiries);
     this.emit('franchise', this.franchiseEnquiries);
     return newEnq;
+  }
+
+  async uploadFranchiseDocuments(_actor: UserProfile, enquiryId: string, files: File[]): Promise<Array<{ id: string; fileName: string; storagePath: string }>> {
+    const idx = this.franchiseEnquiries.findIndex(e => e.id === enquiryId);
+    if (idx === -1) throw new Error('Enquiry not found');
+    
+    const docs = files.map(file => ({
+      id: `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      fileName: file.name,
+      storagePath: `mock/franchise/${enquiryId}/${file.name}`,
+      uploadedAt: new Date().toISOString()
+    }));
+    
+    this.franchiseEnquiries[idx] = {
+      ...this.franchiseEnquiries[idx],
+      documents: [...(this.franchiseEnquiries[idx].documents || []), ...docs]
+    };
+    
+    this.saveToStorage('franchise', this.franchiseEnquiries);
+    this.emit('franchise', this.franchiseEnquiries);
+    return docs;
+  }
+
+  async getFranchiseDocuments(_actor: UserProfile, enquiryId: string): Promise<Array<{ id: string; fileName: string; storagePath: string; uploadedAt: string }>> {
+    const idx = this.franchiseEnquiries.findIndex(e => e.id === enquiryId);
+    if (idx === -1) throw new Error('Enquiry not found');
+    return this.franchiseEnquiries[idx].documents || [];
   }
 
   async getAuditLogs(actor: UserProfile): Promise<SeedAuditLog[]> {

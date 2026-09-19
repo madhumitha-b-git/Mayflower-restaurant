@@ -14,7 +14,7 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({
   onCancel,
   onNewReservation,
 }) => {
-  const activeReservations = reservations.filter((r) => r.status !== 'CANCELLED');
+  const activeReservations = reservations;
 
   return (
     <section className="space-y-4" data-purpose="reservations-section">
@@ -73,7 +73,13 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({
                   <div className="space-y-3">
                     {/* Tag & Ref */}
                     <div className="flex items-center gap-3">
-                      <span className="bg-[#081C15] text-[#8FD8B0] text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded border border-[#1A3E2A]">
+                      <span className={`text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded border ${
+                        res.status === 'PENDING' ? 'bg-amber-100 text-amber-900 border-amber-200' :
+                        res.status === 'CONFIRMED' ? 'bg-blue-100 text-blue-900 border-blue-200' :
+                        res.status === 'SEATED' ? 'bg-green-100 text-green-900 border-green-200' :
+                        res.status === 'COMPLETED' ? 'bg-gray-100 text-gray-900 border-gray-200' :
+                        'bg-red-100 text-red-900 border-red-200'
+                      }`}>
                         {res.status}
                       </span>
                       <span className="text-xs text-stone-500 font-medium tracking-wide">
@@ -144,6 +150,16 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({
                         </svg>
                         <span>{res.guests} Guests</span>
                       </div>
+                      
+                      {/* Assigned Table */}
+                      {res.assignedTable && (
+                        <div className="flex items-center gap-2 text-[#2D4030] font-medium">
+                          <svg className="w-4 h-4 text-[#C5A880]" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                          <span>Table {res.assignedTable}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -156,13 +172,15 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({
                     >
                       MODIFY
                     </button>
-                    <button
-                      onClick={() => onCancel(res)}
-                      className="px-5 py-2 rounded-md border border-rose-200 bg-rose-50/60 text-xs font-semibold text-rose-600 hover:bg-rose-100/70 hover:border-rose-300 transition-colors uppercase tracking-wider cursor-pointer"
-                      type="button"
-                    >
-                      CANCEL
-                    </button>
+                    {res.status === 'PENDING' && (
+                      <button
+                        onClick={() => onCancel(res)}
+                        className="px-5 py-2 rounded-md border border-rose-200 bg-rose-50/60 text-xs font-semibold text-rose-600 hover:bg-rose-100/70 hover:border-rose-300 transition-colors uppercase tracking-wider cursor-pointer"
+                        type="button"
+                      >
+                        CANCEL
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
