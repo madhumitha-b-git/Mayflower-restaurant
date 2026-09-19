@@ -13,7 +13,9 @@ export interface ReservationLike {
 export interface TaskLike {
   id?: string;
   assigned_user_id?: string;
+  assignedUserId?: string;
   assigned_role?: string;
+  assignedRole?: string;
   outlet?: string | null;
   status?: string;
 }
@@ -160,7 +162,9 @@ export const canUpdateTaskStatus = (user?: UserProfile | null, task?: TaskLike):
   if (isSuperAdmin(user) || isOwner(user) || isAdmin(user) || isManager(user)) return true;
   if (isChef(user)) {
     if (!task) return true;
-    return task.assigned_user_id === user.id || task.assigned_role === 'Chef';
+    const role = task.assigned_role || task.assignedRole;
+    const uid = task.assigned_user_id || task.assignedUserId;
+    return uid === user.id || role === 'Chef';
   }
   return false;
 };

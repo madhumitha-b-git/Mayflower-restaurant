@@ -194,8 +194,20 @@ export const supabaseRegister = async (
   });
 
   if (error || !data.user) {
+    const isEmailSendError = /error sending confirmation email|confirmation email/i.test(error?.message || '');
     const isRateLimit = /rate limit/i.test(error?.message || '');
     const isDuplicate = /already|registered|exists/i.test(error?.message || '');
+
+    if (isEmailSendError) {
+      // Try logging in in case user was actually created
+      const loginRes = await supabaseLogin(normalizedEmail, password);
+      if (loginRes.success) return loginRes;
+
+      return {
+        success: false,
+        message: 'Supabase email service error: Email confirmation is enabled in your Supabase project, but custom SMTP is not set up. To allow registration without SMTP: In Supabase Dashboard -> Authentication -> Providers -> Email, turn OFF "Confirm email".'
+      };
+    }
 
     if (isRateLimit) {
       // Attempt auto-login if account was already created during previous attempt
@@ -203,7 +215,7 @@ export const supabaseRegister = async (
       if (loginRes.success) return loginRes;
       return {
         success: false,
-        message: 'Supabase email rate limit reached. To fix this: Go to Supabase Dashboard -> Auth -> Providers -> Email and turn OFF "Confirm Email", or Sign In directly if your account exists.'
+        message: 'Supabase email rate limit reached. To fix this: Go to Supabase Dashboard -> Auth -> Providers -> Email and turn OFF "Confirm email", or Sign In directly if your account exists.'
       };
     }
 

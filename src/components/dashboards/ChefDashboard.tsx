@@ -110,30 +110,36 @@ const EIGHTY_SIX_BOARD: EightySixItem[] = [
 
 // ── Menu Items ────────────────────────────────────────────────────────────────
 const MENU_ITEMS = [
-  { category: 'Starters', items: [
-    { name: 'Smoked Burrata Pugliese', allergens: ['Dairy', 'Gluten'], diet: 'V', note: 'Basil oil — nut-free line' },
-    { name: 'Nilgiri Lamb Rillettes', allergens: ['Gluten'], diet: '', note: 'Medium-rare default' },
-    { name: 'Sea Bass Ceviche', allergens: ['Fish'], diet: '', note: 'Lemongrass marinade 4h prior' },
-  ]},
-  { category: 'Mains', items: [
-    { name: 'Braised Nilgiri Lamb Shank', allergens: ['Dairy'], diet: '', note: 'Sous-vide 36hr; temp on order' },
-    { name: 'Morel Mushroom Risotto', allergens: ['Dairy', 'Gluten'], diet: 'V', note: 'Separate pan for Jain (no onion)' },
-    { name: 'Pan-Seared Sea Bass', allergens: ['Fish', 'Dairy'], diet: '', note: 'Skin on; fire 4min per side' },
-  ]},
-  { category: 'Desserts', items: [
-    { name: 'Chocolate Marquise', allergens: ['Dairy', 'Eggs'], diet: 'V', note: '87% Valrhona; serve at 6°C' },
-    { name: 'Rose Kheer Brulee', allergens: ['Dairy', 'Eggs'], diet: 'V', note: 'Torch crust at pass' },
-  ]},
+  {
+    category: 'Starters', items: [
+      { name: 'Smoked Burrata Pugliese', allergens: ['Dairy', 'Gluten'], diet: 'V', note: 'Basil oil — nut-free line' },
+      { name: 'Nilgiri Lamb Rillettes', allergens: ['Gluten'], diet: '', note: 'Medium-rare default' },
+      { name: 'Sea Bass Ceviche', allergens: ['Fish'], diet: '', note: 'Lemongrass marinade 4h prior' },
+    ]
+  },
+  {
+    category: 'Mains', items: [
+      { name: 'Braised Nilgiri Lamb Shank', allergens: ['Dairy'], diet: '', note: 'Sous-vide 36hr; temp on order' },
+      { name: 'Morel Mushroom Risotto', allergens: ['Dairy', 'Gluten'], diet: 'V', note: 'Separate pan for Jain (no onion)' },
+      { name: 'Pan-Seared Sea Bass', allergens: ['Fish', 'Dairy'], diet: '', note: 'Skin on; fire 4min per side' },
+    ]
+  },
+  {
+    category: 'Desserts', items: [
+      { name: 'Chocolate Marquise', allergens: ['Dairy', 'Eggs'], diet: 'V', note: '87% Valrhona; serve at 6°C' },
+      { name: 'Rose Kheer Brulee', allergens: ['Dairy', 'Eggs'], diet: 'V', note: 'Torch crust at pass' },
+    ]
+  },
 ];
 
 // ── SOP category colors ───────────────────────────────────────────────────────
 const CATEGORY_COLORS: Record<string, string> = {
-  'HACCP':      'text-red-700 bg-red-50 border-red-200',
+  'HACCP': 'text-red-700 bg-red-50 border-red-200',
   'Sanitation': 'text-blue-700 bg-blue-50 border-blue-200',
-  'Prep':       'text-amber-700 bg-amber-50 border-amber-200',
-  'Quality':    'text-emerald-700 bg-emerald-50 border-emerald-200',
-  'Opening':    'text-purple-700 bg-purple-50 border-purple-200',
-  'Closing':    'text-slate-700 bg-slate-50 border-slate-200',
+  'Prep': 'text-amber-700 bg-amber-50 border-amber-200',
+  'Quality': 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  'Opening': 'text-purple-700 bg-purple-50 border-purple-200',
+  'Closing': 'text-slate-700 bg-slate-50 border-slate-200',
 };
 
 type ChefTab = 'kds' | 'sops' | 'prep' | 'eightysix' | 'menu' | 'shift';
@@ -245,12 +251,12 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
 
   // ─── Tabs config ────────────────────────────────────────────────────────────
   const TABS: { id: ChefTab; label: string; icon: React.ReactNode; badge?: string }[] = [
-    { id: 'kds',       label: 'Live KDS',       icon: <Flame className="w-3.5 h-3.5" />,        badge: tickets.length > 0 ? String(tickets.length) : undefined },
-    { id: 'sops',      label: 'SOPs & Evidence', icon: <ClipboardList className="w-3.5 h-3.5" />, badge: sopProgress < 100 ? `${sopProgress}%` : undefined },
-    { id: 'prep',      label: 'Daily Prep',      icon: <Layers className="w-3.5 h-3.5" />,       badge: `${prepDone}/${PREP_ITEMS.length}` },
-    { id: 'eightysix', label: '86 Board',        icon: <ShieldAlert className="w-3.5 h-3.5" />,   badge: active86 > 0 ? String(active86) : undefined },
-    { id: 'menu',      label: 'Menu & Allergens', icon: <Utensils className="w-3.5 h-3.5" /> },
-    { id: 'shift',     label: 'My Shift',        icon: <ChefHat className="w-3.5 h-3.5" /> },
+    { id: 'kds', label: 'Live KDS', icon: <Flame className="w-3.5 h-3.5" />, badge: tickets.length > 0 ? String(tickets.length) : undefined },
+    { id: 'sops', label: 'SOPs & Evidence', icon: <ClipboardList className="w-3.5 h-3.5" />, badge: sopProgress < 100 ? `${sopProgress}%` : undefined },
+    { id: 'prep', label: 'Daily Prep', icon: <Layers className="w-3.5 h-3.5" />, badge: `${prepDone}/${PREP_ITEMS.length}` },
+    { id: 'eightysix', label: '86 Board', icon: <ShieldAlert className="w-3.5 h-3.5" />, badge: active86 > 0 ? String(active86) : undefined },
+    { id: 'menu', label: 'Menu & Allergens', icon: <Utensils className="w-3.5 h-3.5" /> },
+    { id: 'shift', label: 'My Shift', icon: <ChefHat className="w-3.5 h-3.5" /> },
   ];
 
   return (
@@ -320,18 +326,16 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap border-b-2 transition-all cursor-pointer ${
-                  activeTab === tab.id
+                className={`flex items-center gap-2 px-4 py-3 text-[11px] font-bold uppercase tracking-wider whitespace-nowrap border-b-2 transition-all cursor-pointer ${activeTab === tab.id
                     ? 'border-[#02150c] text-[#02150c]'
                     : 'border-transparent text-stone-400 hover:text-stone-600 hover:border-stone-200'
-                }`}
+                  }`}
               >
                 {tab.icon}
                 {tab.label}
                 {tab.badge && (
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                    activeTab === tab.id ? 'bg-[#02150c] text-[#C5A880]' : 'bg-[#f5f3ef] text-stone-500'
-                  }`}>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-[#02150c] text-[#C5A880]' : 'bg-[#f5f3ef] text-stone-500'
+                    }`}>
                     {tab.badge}
                   </span>
                 )}
@@ -361,9 +365,8 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
                   <button
                     key={f}
                     onClick={() => setActiveKdsFilter(f)}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                      activeKdsFilter === f ? 'bg-[#C5A880] text-[#02150c]' : 'text-white hover:bg-white/10'
-                    }`}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${activeKdsFilter === f ? 'bg-[#C5A880] text-[#02150c]' : 'text-white hover:bg-white/10'
+                      }`}
                   >
                     {f === 'all' ? `All (${tickets.length})` : f === 'degustation' ? 'Degustation / VIP' : 'À La Carte'}
                   </button>
@@ -385,10 +388,9 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
                     <div className={`p-4 border-b border-[#e4e2de] ${ticket.isVip ? 'bg-[#02150c] text-white' : 'bg-[#faf9f6]'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <span className={`font-bold text-sm ${ticket.isVip ? 'text-[#C5A880]' : 'text-[#02150c]'}`}>{ticket.table}</span>
-                        <div className={`flex items-center gap-1 font-mono text-xs font-bold ${
-                          ticket.timerStartSeconds > 720 ? 'text-red-500' :
-                          ticket.timerStartSeconds > 480 ? 'text-amber-600' : 'text-[#745b20]'
-                        }`}>
+                        <div className={`flex items-center gap-1 font-mono text-xs font-bold ${ticket.timerStartSeconds > 720 ? 'text-red-500' :
+                            ticket.timerStartSeconds > 480 ? 'text-amber-600' : 'text-[#745b20]'
+                          }`}>
                           <Timer className="w-3.5 h-3.5" />
                           <span>{formatTimer(ticket.timerStartSeconds)}</span>
                         </div>
@@ -533,11 +535,10 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
                     <div className="flex items-center gap-3 text-[11px] text-stone-400">
                       <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Due {task.dueAt}</span>
                       {task.priority && (
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
-                          task.priority === 'Critical' ? 'bg-red-50 text-red-700 border-red-200' :
-                          task.priority === 'High' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          'bg-stone-50 text-stone-500 border-stone-200'
-                        }`}>{task.priority}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${task.priority === 'Critical' ? 'bg-red-50 text-red-700 border-red-200' :
+                            task.priority === 'High' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              'bg-stone-50 text-stone-500 border-stone-200'
+                          }`}>{task.priority}</span>
                       )}
                     </div>
 
@@ -545,11 +546,10 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
                     <div className="flex gap-2 mt-auto">
                       <button
                         onClick={() => handleToggleTaskStatus(task.id, status)}
-                        className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer text-center ${
-                          isDone
+                        className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer text-center ${isDone
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                             : 'bg-[#02150c] text-[#C5A880] border-[#02150c] hover:bg-[#0a2a18]'
-                        }`}
+                          }`}
                       >
                         {isDone ? '✓ Completed' : status === 'In Progress' ? '● In Progress' : 'Mark Complete'}
                       </button>
@@ -562,11 +562,10 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
                           setSelectedTaskCategory(task.category);
                           setEvidenceModalOpen(true);
                         }}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer ${
-                          isDone
+                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer ${isDone
                             ? 'bg-stone-50 text-stone-400 border-stone-200 cursor-default'
                             : 'bg-white text-[#745b20] border-[#C5A880]/50 hover:bg-[#fdf8f0] hover:border-[#C5A880]'
-                        }`}
+                          }`}
                         title={isDone ? 'Already submitted' : 'Upload geo-tagged photo evidence'}
                       >
                         {isDone ? <ImageIcon className="w-3.5 h-3.5" /> : <Camera className="w-3.5 h-3.5" />}
@@ -612,16 +611,15 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
                 {PREP_ITEMS.map(item => (
                   <div key={item.id} className="flex items-center gap-4 px-5 py-4 hover:bg-[#faf9f6] transition-colors">
                     {/* Status icon */}
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                      item.status === 'done'        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
-                      item.status === 'in-progress' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
-                      item.status === 'delayed'     ? 'bg-red-50 text-red-600 border border-red-200' :
-                      'bg-stone-50 text-stone-400 border border-stone-200'
-                    }`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${item.status === 'done' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                        item.status === 'in-progress' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
+                          item.status === 'delayed' ? 'bg-red-50 text-red-600 border border-red-200' :
+                            'bg-stone-50 text-stone-400 border border-stone-200'
+                      }`}>
                       {item.status === 'done' ? <Check className="w-4 h-4" /> :
-                       item.status === 'in-progress' ? <RefreshCw className="w-4 h-4 animate-spin" style={{ animationDuration: '3s' }} /> :
-                       item.status === 'delayed' ? <AlertTriangle className="w-4 h-4" /> :
-                       <Circle className="w-4 h-4" />}
+                        item.status === 'in-progress' ? <RefreshCw className="w-4 h-4 animate-spin" style={{ animationDuration: '3s' }} /> :
+                          item.status === 'delayed' ? <AlertTriangle className="w-4 h-4" /> :
+                            <Circle className="w-4 h-4" />}
                     </div>
 
                     {/* Info */}
@@ -636,12 +634,11 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
 
                     <div className="text-right shrink-0">
                       <p className="text-xs font-bold text-stone-500">{item.qty}</p>
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border mt-1 inline-block ${
-                        item.status === 'done'        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        item.status === 'in-progress' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                        item.status === 'delayed'     ? 'bg-red-50 text-red-700 border-red-200' :
-                        'bg-stone-50 text-stone-500 border-stone-200'
-                      }`}>
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border mt-1 inline-block ${item.status === 'done' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          item.status === 'in-progress' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            item.status === 'delayed' ? 'bg-red-50 text-red-700 border-red-200' :
+                              'bg-stone-50 text-stone-500 border-stone-200'
+                        }`}>
                         {item.status === 'done' ? 'Ready' : item.status === 'in-progress' ? 'In Progress' : item.status === 'delayed' ? 'Delayed' : 'Pending'}
                       </span>
                     </div>
@@ -675,20 +672,17 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
 
             <div className="space-y-3">
               {eightySixBoard.map(item => (
-                <div key={item.id} className={`bg-white rounded-2xl border shadow-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
-                  item.status === 'active' ? 'border-red-200' : 'border-[#e4e2de] opacity-60'
-                }`}>
+                <div key={item.id} className={`bg-white rounded-2xl border shadow-sm p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${item.status === 'active' ? 'border-red-200' : 'border-[#e4e2de] opacity-60'
+                  }`}>
                   <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      item.status === 'active' ? 'bg-red-100 text-red-600' : 'bg-stone-100 text-stone-400'
-                    }`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.status === 'active' ? 'bg-red-100 text-red-600' : 'bg-stone-100 text-stone-400'
+                      }`}>
                       <ShieldAlert className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
-                          item.status === 'active' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-stone-50 text-stone-500 border-stone-200'
-                        }`}>
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${item.status === 'active' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-stone-50 text-stone-500 border-stone-200'
+                          }`}>
                           {item.status === 'active' ? '86\'d — Unavailable' : 'Resolved'}
                         </span>
                         <span className="text-[11px] text-stone-400">{item.flaggedAt} · {item.flaggedBy}</span>
