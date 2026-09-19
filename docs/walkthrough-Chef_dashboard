@@ -1,0 +1,124 @@
+# Chef Dashboard — Delivery Walkthrough
+
+## What Was Built
+
+### ✅ Chef Dashboard — Complete Rewrite
+
+A fully featured **Kitchen Command Centre** with 6 tabs, live interactivity, and geo-tagged evidence submission.
+
+---
+
+## Live KDS Tab
+![KDS Tab](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_dashboard_kds_1789838727885.png)
+
+The default tab shows all active kitchen order tickets with:
+- **Per-ticket countdown timers** (color-coded: green → amber → red at 8min / 12min)
+- **Rush & VIP flags** — rush tickets get a red ring + banner
+- **Allergen call-outs** embedded on each item row
+- **Bump Order** button to clear tickets from the pass
+- **Print KOT** button for duplicate receipts
+- Filter strip: All / Degustation+VIP / À La Carte
+
+---
+
+## SOPs & Evidence Tab (Key Requirement)
+![SOPs & Evidence Tab](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_sops_evidence_tab_1789838765556.png)
+
+Shows all HACCP & kitchen SOPs with:
+- **Progress ring** — today's completion percentage
+- **Amber banner** reminding that geo-tagged photo evidence is required for all tasks
+- Per-task cards with: Category badge, Due time, Priority tag
+- Two action buttons: **Mark Complete** + **Evidence** (camera icon)
+
+### Geo-Tagged Evidence Upload Modal
+![Evidence Upload Modal](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_evidence_upload_modal_1789838807484.png)
+
+On clicking **Evidence** on any pending SOP:
+- GPS is **requested immediately** when the modal opens (browser permission prompt)
+- Shows a status bar: `Location Acquired ✓` with lat/lng coordinates + accuracy radius
+- Coordinates are shown in the bar: `13.128707, 80.257145 ±129m` + a `Map ↗` link (opens Google Maps)
+- Camera-first file input (mobile: opens camera; desktop: file picker)
+- Preview shows the photo with **coordinates & timestamp embedded** as an overlay
+- Metadata summary: Chef name, captured time, Geo-Tag status
+- On submit: evidence stored + SOP task auto-marked as Completed
+
+---
+
+## Daily Prep Tab
+![Daily Prep Tab](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_daily_prep_tab_1789838885128.png)
+
+Pre-service mise en place tracker with 8 station items showing:
+- Station name + assigned cook
+- Task description + quantity
+- Status badges: Ready / In Progress / Pending / Delayed
+- Spinning icon for in-progress items, alert icon for delayed
+
+---
+
+## 86 Board Tab
+![86 Board Tab](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_86_board_tab_1789838934426.png)
+![86 Item Added](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_86_item_added_1789839078366.png)
+
+Live board of unavailable menu items:
+- **"86 Item" button** in the sticky header — opens modal to flag item + reason
+- New items instantly appear on the board + header badge count updates
+- Reinstate button to remove 86 flag when stock is restored
+
+**Test result:** Flagged "Truffle Butter Pasta" → confirmed on board → header badge updated to **3 Item 86'd**
+
+---
+
+## Menu & Allergens Tab
+![Menu & Allergens Tab](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_menu_allergens_tab_1789839129393.png)
+
+Read-only kitchen reference showing:
+- Starters / Mains / Desserts grouped sections
+- Allergen badges (🥛 Dairy, 🌾 Gluten, 🐟 Fish, 🥚 Eggs)
+- Vegetarian leaf icon (🌿)
+- Per-item preparation notes for the station
+
+---
+
+## My Shift Tab
+![My Shift Tab](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_my_shift_tab_1789839179226.png)
+
+Personal shift overview:
+- Shift hours, assigned station, brigade size, break slot, delivery ETA
+- Today's performance stats: Tickets bumped, SOPs done, Avg ticket time, VIP tables
+- Manager's notes panel (amber alert box) with tonight's special instructions
+
+---
+
+## Manager Dashboard — Chef Evidence Monitor
+
+The Manager Dashboard's **Evidence** queue tab has been enhanced with a dedicated **Chef Evidence Monitor** section:
+
+- **Dark green banner** at top: "Geo-Tagged SOP Photo Evidence · Chef Evidence Monitor · Live · Auto-refreshing"
+- Each evidence card shows:
+  - **Photo** (left side, 192px wide) with geo-coordinates overlaid
+  - **Category badge** (HACCP in red, Sanitation in blue, etc.)
+  - **Task title** + **Chef name** + **Timestamp** ("X mins ago")
+  - **GPS Location Verified** panel: full 6-decimal coordinates as a **clickable Google Maps link** + accuracy radius
+  - **Remarks** from the chef
+- **Approve Evidence** → card turns emerald with "Evidence Approved — Logged to Compliance Report"
+- **Reject & Escalate** → card turns rose with "Rejected — Chef Notified for Re-submission"
+- Pre-populated with 3 example submissions from Executive Chef, Sous Chef Vikram, and Pastry Chef Meenakshi
+
+---
+
+## TypeScript Build Status
+
+| File | Status |
+|---|---|
+| `ChefDashboard.tsx` | ✅ Clean (no errors) |
+| `EvidenceUploadModal.tsx` | ✅ Clean (no errors) |
+| `ManagerDashboard.tsx` | ✅ Clean (no errors) |
+| Pre-existing test errors | ℹ️ Pre-existing — not introduced by this work |
+
+---
+
+## Recording
+
+A full browser walkthrough was recorded during testing:
+
+![Chef Dashboard Full Walkthrough](file:///C:/Users/prasa/.gemini/antigravity-ide/brain/9094e599-1826-476d-a610-53dc45794e06/chef_dashboard_full_walkthrough_1789838383558.webp)

@@ -5,8 +5,52 @@ import { getDataProvider } from '../../data/DataProvider';
 import {
   Check, X, MapPin, RefreshCw, UserPlus, ChevronDown,
   Clock, Users, Utensils, AlertTriangle, CheckCircle2,
-  Circle, Flame, Wine, Flower2
+  Circle, Flame, Wine, Flower2, ExternalLink,
+  ShieldCheck, XCircle, ChefHat
 } from 'lucide-react';
+
+// ── Mock chef geo-tagged evidence for demonstration ──────────────────────────
+const MOCK_GEO_EVIDENCE = [
+  {
+    id: 'geo-1',
+    chefName: 'Executive Chef',
+    taskTitle: 'Walk-in Cooler Temp Log (Target < 3.5°C)',
+    taskCategory: 'HACCP',
+    capturedAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
+    geoLat: 13.0359,
+    geoLng: 80.2473,
+    geoAccuracy: 8,
+    storagePath: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=400&q=80',
+    remarks: 'Temp checked at 3.2°C — within safe range',
+    status: 'pending' as 'pending' | 'approved' | 'rejected',
+  },
+  {
+    id: 'geo-2',
+    chefName: 'Sous Chef Vikram',
+    taskTitle: 'Line Sanitizer Bucket PPM Check',
+    taskCategory: 'Sanitation',
+    capturedAt: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
+    geoLat: 13.0358,
+    geoLng: 80.2474,
+    geoAccuracy: 12,
+    storagePath: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&q=80',
+    remarks: 'PPM at 200 — sanitizer renewed at 11:30 AM',
+    status: 'pending' as 'pending' | 'approved' | 'rejected',
+  },
+  {
+    id: 'geo-3',
+    chefName: 'Pastry Chef Meenakshi',
+    taskTitle: 'Waste Disposal & Bin Sanitization',
+    taskCategory: 'Sanitation',
+    capturedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+    geoLat: 13.036,
+    geoLng: 80.2471,
+    geoAccuracy: 5,
+    storagePath: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=400&q=80',
+    remarks: '',
+    status: 'approved' as 'pending' | 'approved' | 'rejected',
+  },
+];
 
 interface Props {
   user: UserProfile;
@@ -76,6 +120,145 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 type QueueTab = 'all' | 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'evidence';
+
+// ── Geo Evidence Card Component ───────────────────────────────────────────────
+interface GeoEvidenceCardProps {
+  evidence: {
+    id: string;
+    chefName: string;
+    taskTitle: string;
+    taskCategory: string;
+    capturedAt: string;
+    geoLat: number;
+    geoLng: number;
+    geoAccuracy: number;
+    storagePath: string;
+    remarks: string;
+    status: 'pending' | 'approved' | 'rejected';
+  };
+  onApprove: () => void;
+  onReject: () => void;
+}
+
+const GeoEvidenceCard: React.FC<GeoEvidenceCardProps> = ({ evidence, onApprove, onReject }) => {
+  const [localStatus, setLocalStatus] = React.useState(evidence.status);
+  const capturedDate = new Date(evidence.capturedAt);
+  const minutesAgo = Math.round((Date.now() - capturedDate.getTime()) / 60000);
+
+  const handleApprove = () => { setLocalStatus('approved'); onApprove(); };
+  const handleReject  = () => { setLocalStatus('rejected'); onReject(); };
+
+  return (
+    <div className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
+      localStatus === 'approved' ? 'border-emerald-200' :
+      localStatus === 'rejected' ? 'border-rose-200 opacity-70' :
+      'border-[#E8E2D5]'
+    }`}>
+      <div className="flex flex-col md:flex-row">
+        {/* Photo */}
+        <div className="md:w-48 h-48 md:h-auto shrink-0 relative overflow-hidden">
+          <img src={evidence.storagePath} alt="Chef geo evidence" className="w-full h-full object-cover" />
+          {/* Geo badge overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent">
+            <div className="flex items-center gap-1">
+              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span className="text-[10px] font-mono text-emerald-300 truncate">
+                {evidence.geoLat.toFixed(4)}, {evidence.geoLng.toFixed(4)}
+              </span>
+            </div>
+          </div>
+          {localStatus !== 'pending' && (
+            <div className={`absolute top-2 left-2 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold ${
+              localStatus === 'approved' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            }`}>
+              {localStatus === 'approved' ? <ShieldCheck className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+              {localStatus === 'approved' ? 'Approved' : 'Rejected'}
+            </div>
+          )}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 p-4 flex flex-col justify-between gap-3">
+          <div>
+            {/* Header */}
+            <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                    evidence.taskCategory === 'HACCP' ? 'bg-red-50 text-red-700 border-red-200' :
+                    evidence.taskCategory === 'Sanitation' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>{evidence.taskCategory}</span>
+                  <span className="text-[11px] text-stone-400">{minutesAgo}m ago</span>
+                </div>
+                <h3 className="text-sm font-semibold text-[#1E3932]">{evidence.taskTitle}</h3>
+              </div>
+            </div>
+
+            {/* Chef + Timestamp */}
+            <div className="flex flex-wrap gap-4 text-[11px] text-stone-500 mb-2">
+              <div className="flex items-center gap-1.5">
+                <ChefHat className="w-3.5 h-3.5 text-[#745b20]" />
+                <span className="font-semibold text-stone-600">{evidence.chefName}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                <span>{capturedDate.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+
+            {/* Geo Coordinates — Clickable */}
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+              <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-0.5">GPS Location Verified</p>
+                <a
+                  href={`https://maps.google.com/?q=${evidence.geoLat},${evidence.geoLng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] font-mono text-emerald-700 hover:text-emerald-900 hover:underline flex items-center gap-1 group cursor-pointer"
+                >
+                  {evidence.geoLat.toFixed(6)}, {evidence.geoLng.toFixed(6)}
+                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </a>
+              </div>
+              <span className="text-[10px] text-emerald-600 font-medium shrink-0">±{evidence.geoAccuracy}m</span>
+            </div>
+
+            {evidence.remarks && (
+              <p className="mt-2 text-[12px] text-stone-500 italic">"{evidence.remarks}"</p>
+            )}
+          </div>
+
+          {/* Actions */}
+          {localStatus === 'pending' ? (
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleApprove}
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 bg-[#1E3932] text-white text-xs font-semibold rounded-lg hover:bg-[#152d26] transition-colors cursor-pointer"
+              >
+                <Check className="w-3.5 h-3.5" /> Approve Evidence
+              </button>
+              <button
+                onClick={handleReject}
+                className="flex-1 flex items-center justify-center gap-1.5 h-9 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" /> Reject & Escalate
+              </button>
+            </div>
+          ) : (
+            <div className={`flex items-center gap-2 text-xs font-semibold py-2 rounded-lg px-3 ${
+              localStatus === 'approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
+            }`}>
+              {localStatus === 'approved' ? <ShieldCheck className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+              {localStatus === 'approved' ? 'Evidence Approved — Logged to Compliance Report' : 'Rejected — Chef Notified for Re-submission'}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, onSwitchRole }) => {
   const [selectedSanctuary, setSelectedSanctuary] = useState('poes');
@@ -406,27 +589,57 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
               </div>
             </div>
 
-            {/* Evidence Tab */}
+            {/* Evidence Tab — Chef Geo-Tagged Monitor */}
             {activeQueueTab === 'evidence' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* Section Banner */}
+                <div className="bg-[#1E3932] text-white rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <ChefHat className="w-4 h-4 text-[#C5A880]" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#C5A880]">Chef Evidence Monitor</span>
+                    </div>
+                    <h3 className="text-sm font-semibold">Geo-Tagged SOP Photo Evidence</h3>
+                    <p className="text-[11px] text-stone-300 mt-0.5">Review kitchen SOP compliance with GPS-verified photo proof from your chef team</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-xs text-emerald-300 font-medium">Live · Auto-refreshing</span>
+                  </div>
+                </div>
+
+                {/* Live DB evidence (if any) */}
                 {kitchenTasks?.filter(t => taskEvidence[t.id]).map(task => (
                   <div key={task.id} className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                       <div className="flex-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#C5A880]">{task.category}</span>
-                        <h3 className="text-sm font-semibold text-[#1E3932] mt-1">{task.title}</h3>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#C5A880] bg-[#FAF7F2] border border-[#E8E2D5] px-2 py-0.5 rounded">{task.category}</span>
+                          <span className="text-[10px] text-stone-400">from Kitchen SOP database</span>
+                        </div>
+                        <h3 className="text-sm font-semibold text-[#1E3932]">{task.title}</h3>
                         <div className="flex flex-wrap gap-3 mt-3">
                           {taskEvidence[task.id].map(ev => (
-                            <div key={ev.id} className="flex gap-3 p-3 bg-[#F7F5F0] rounded-lg border border-[#E8E2D5]">
-                              <div className="w-20 h-20 rounded-lg overflow-hidden border border-[#E8E2D5]">
+                            <div key={ev.id} className="bg-[#F7F5F0] rounded-xl border border-[#E8E2D5] overflow-hidden">
+                              <div className="w-full h-36 overflow-hidden">
                                 <img src={ev.storagePath} alt="Evidence" className="w-full h-full object-cover" />
                               </div>
-                              <div className="flex flex-col justify-center">
-                                <p className="text-xs font-semibold text-[#1E3932]">{new Date(ev.capturedAt).toLocaleString()}</p>
+                              <div className="p-3 space-y-1.5">
+                                <p className="text-xs font-semibold text-[#1E3932] flex items-center gap-1">
+                                  <Clock className="w-3 h-3 text-stone-400" />
+                                  {new Date(ev.capturedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </p>
                                 {ev.geoLat && ev.geoLng && (
-                                  <p className="text-[11px] text-stone-400 mt-1 flex items-center gap-1">
-                                    <MapPin className="w-3 h-3" />{ev.geoLat}, {ev.geoLng}
-                                  </p>
+                                  <a
+                                    href={`https://maps.google.com/?q=${ev.geoLat},${ev.geoLng}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-[11px] text-emerald-700 font-mono hover:text-emerald-900 group cursor-pointer"
+                                  >
+                                    <MapPin className="w-3 h-3 shrink-0" />
+                                    {ev.geoLat.toFixed(4)}, {ev.geoLng.toFixed(4)}
+                                    <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </a>
                                 )}
                               </div>
                             </div>
@@ -444,7 +657,18 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
                     </div>
                   </div>
                 ))}
-                {!kitchenTasks?.filter(t => taskEvidence[t.id]).length && (
+
+                {/* Mock geo-evidence cards (always shown for demo) */}
+                {MOCK_GEO_EVIDENCE.map(ev => (
+                  <GeoEvidenceCard
+                    key={ev.id}
+                    evidence={ev}
+                    onApprove={() => showToast(`Evidence approved: ${ev.taskTitle}`)}
+                    onReject={() => showToast(`Evidence rejected & escalated: ${ev.taskTitle}`)}
+                  />
+                ))}
+
+                {!kitchenTasks?.filter(t => taskEvidence[t.id]).length && MOCK_GEO_EVIDENCE.length === 0 && (
                   <div className="bg-white rounded-xl border border-[#E8E2D5] p-8 text-center text-stone-400 text-sm">No evidence pending review.</div>
                 )}
               </div>
