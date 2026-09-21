@@ -56,6 +56,7 @@ export interface SalonVenue {
   description: string;
   imageUrl: string;
   timing: string;
-  dressCode: string;
-  signatureOfferings: string[];
+  highlights?: string[];
+  dressCode?: string;
+  signatureOfferings?: string[];
 }

@@ -88,7 +88,7 @@ describe('AuthModal Redesign (Two-Sided Luxury Screen)', () => {
     );
 
     fireEvent.change(screen.getByPlaceholderText('e.g. Eleanor Vance'), { target: { value: 'Eleanor' } });
-    fireEvent.change(screen.getByPlaceholderText('name@email.com'), { target: { value: 'eleanor@example.com' } });
+    fireEvent.change(screen.getByPlaceholderText('name@email.com'), { target: { value: 'eleanor@gmail.com' } });
     fireEvent.change(screen.getByPlaceholderText('••••••••••••'), { target: { value: 'password123' } });
     fireEvent.change(screen.getByPlaceholderText('Re-enter password'), { target: { value: 'different123' } });
 

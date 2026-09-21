@@ -83,31 +83,23 @@ export const VenuesModal: React.FC<VenuesModalProps> = ({
                     {venue.description}
                   </p>
 
-                  {/* Highlights Grid */}
-                  <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-stone-600 border-t border-stone-100">
+                  {/* Hours & Highlights */}
+                  <div className="pt-2 text-[11px] text-stone-600 border-t border-stone-100 space-y-2">
                     <div>
                       <strong className="text-stone-800">Hours:</strong> {venue.timing}
                     </div>
-                    <div>
-                      <strong className="text-stone-800">Dress Code:</strong> {venue.dressCode}
-                    </div>
-                  </div>
-
-                  {/* Signature Offerings */}
-                  <div className="pt-1">
-                    <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1">
-                      Signature Selections
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {venue.signatureOfferings.map((sig) => (
-                        <span
-                          key={sig}
-                          className="bg-[#FAF7F2] text-stone-700 border border-[#E8E2D5] text-[10px] px-2 py-0.5 rounded"
-                        >
-                          {sig}
-                        </span>
-                      ))}
-                    </div>
+                    {venue.highlights && venue.highlights.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        {venue.highlights.map((tag) => (
+                          <span
+                            key={tag}
+                            className="bg-[#FAF7F2] text-stone-700 border border-[#E8E2D5] text-[10px] px-2.5 py-0.5 rounded-md font-medium"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 

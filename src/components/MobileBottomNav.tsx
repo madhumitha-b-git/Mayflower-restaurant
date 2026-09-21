@@ -1,5 +1,5 @@
 import { Home, Calendar, Utensils, MapPin } from 'lucide-react';
-import { AppView } from '../App';
+import { AppView } from '../types';
 
 interface Props {
   activeView: AppView;

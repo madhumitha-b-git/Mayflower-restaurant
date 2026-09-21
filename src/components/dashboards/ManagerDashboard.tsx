@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../../types';
+import { useSafeNavigate, useSafeLocation } from '../../routes/roleRoutes';
 import { useTasks } from '../../hooks/useAppData';
 import { getDataProvider } from '../../data/DataProvider';
 import {
@@ -261,6 +262,9 @@ const GeoEvidenceCard: React.FC<GeoEvidenceCardProps> = ({ evidence, onApprove, 
 };
 
 export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, onSwitchRole }) => {
+  const navigate = useSafeNavigate();
+  const location = useSafeLocation();
+
   const [selectedSanctuary, setSelectedSanctuary] = useState('poes');
   const [activeQueueTab, setActiveQueueTab] = useState<QueueTab>('all');
   const [reservations, setReservations] = useState<ReservationItem[]>(MOCK_RESERVATIONS);
@@ -275,6 +279,16 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
   const [taskEvidence, setTaskEvidence] = useState<Record<string, any[]>>({});
 
   const { data: kitchenTasks, refetch: refetchTasks } = useTasks(user);
+
+  // Sync route with active views
+  useEffect(() => {
+    if (location.pathname.includes('/sops') || location.pathname.includes('/evidence')) {
+      setActiveQueueTab('evidence');
+    } else if (location.pathname.includes('/tables')) {
+      const el = document.getElementById('zone-allocation-map');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [location.pathname]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -570,7 +584,10 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
                 {(['all','pending','confirmed','seated','completed','cancelled','evidence'] as QueueTab[]).map(tab => (
                   <button
                     key={tab}
-                    onClick={() => setActiveQueueTab(tab)}
+                    onClick={() => {
+                      setActiveQueueTab(tab);
+                      navigate(tab === 'evidence' ? '/manager/sops' : '/manager/reservations');
+                    }}
                     className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors cursor-pointer ${
                       activeQueueTab === tab
                         ? 'bg-[#1E3932] text-white shadow-sm'
@@ -838,7 +855,7 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
             </div>
 
             {/* Zone Allocation Map */}
-            <div className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
+            <div id="zone-allocation-map" className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-sm font-semibold text-[#1E3932]">Zone Allocation Map</h2>
                 <span className="text-[11px] text-[#C5A880] font-medium">Click to inspect</span>

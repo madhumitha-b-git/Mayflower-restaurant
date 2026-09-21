@@ -36,33 +36,6 @@ const EXPERIENCE_OPTIONS = [
   'Sommelier Wine Pairing',
 ];
 
-const MEMORY_PRESETS: ReviewMemory[] = [
-  {
-    title: 'Poes Garden High Tea Spread',
-    subtitle: 'Classic Devonshire cream scones & rare tea',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida/AEtjO1Wo3D-NxlZuevsKxWUQc0PzydoS3peIKmiYY6QtnfINRqzJH02yMjS0jyQlLRrPcoks-ukpVd6K5xWLyyhHQfFjxQqZOa5nNWJDBuHYrJTu72nmEU_bCgxQC3pO96YcOrOBKTFu19K5R4fqScnrXH4aKPDEVBcylGJeaLUSEUSH_sHUoCntMrsXi7J-tSUZiq1jax_EwSzs4k4oDLdcrB_MwsYmDDYbVFyhMy_SpJiZyTGzd7-K2F880LY',
-  },
-  {
-    title: 'Palavakkam Seaside Terrace',
-    subtitle: 'Candlelit oceanfront terrace table',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida/AEtjO1XW-PaWkerRX2rvFgm1YiLEKzo5LKFtMeTwMs7UiL6mhBQmcC9lbh-mMmopPY6Axaih3QQJvZJLq-mdcjNJV0lkD6d0GM4CmajtbU08da42C-tGwMh2UFcISgk52hMt3mo_zpQFrrCoeVW39FSWDg2p0XyuSM7qlEXhXtrzfjy6H1eD4eEG7ew3t-eFhUYJh0ggjPCLpbdKF2q3uHm2oH1j2khFg7JFK4uzGYuZVS8tekVuTXpiceih4Bg',
-  },
-  {
-    title: 'Egmore Heritage Dining',
-    subtitle: 'Cathedral ceilings and premier vintages',
-    imageUrl:
-      'https://lh3.googleusercontent.com/aida/AEtjO1XKIlQBg8XDWITGCIcXI6RJC_RINGskS7HFz_6rq_LI4WMvZ3BqiEPW08_fkxqfIjyp5jsZ6zRJAQ-AEMHP_1XqncR6UGUOOwxqaichKeou8aGL_gWOj-ReFqc8Rru0UxozJi4PyVEXIbP9wypwYPJ_sIAfE5Bs9UTP0zRNll_fy8GZLCTUIbLaTxNp6pdyHqgO19bnaH6jWRVPydTBya32inEkSmbflUk207E_x8B_X8fPT_ukjEe1hXY',
-  },
-  {
-    title: 'Anna Nagar Glasshouse Solarium',
-    subtitle: 'Sunlit botanicals and garden cabanas',
-    imageUrl:
-      'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?q=80&w=1000&auto=format&fit=crop',
-  },
-];
-
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   isOpen,
   onClose,
@@ -74,8 +47,6 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
   const [selectedSalon, setSelectedSalon] = useState<string>('Poes Garden Salon');
   const [selectedExperience, setSelectedExperience] = useState<string>('Fine Dining Tasting');
   const [notes, setNotes] = useState<string>('');
-  const [includeMemory, setIncludeMemory] = useState<boolean>(true);
-  const [selectedMemoryIndex, setSelectedMemoryIndex] = useState<number>(0);
 
   const [isSalonOpen, setIsSalonOpen] = useState<boolean>(false);
   const [isExpOpen, setIsExpOpen] = useState<boolean>(false);
@@ -89,7 +60,6 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
       experienceType: selectedExperience,
       rating,
       notes,
-      attachedMemory: includeMemory ? MEMORY_PRESETS[selectedMemoryIndex] : undefined,
     });
     setNotes('');
     onClose();
@@ -332,51 +302,6 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
-          </div>
-
-          {/* Attach Dining Memory / Photo */}
-          <div className="p-3 bg-[#FAF7F2] rounded-lg border border-[#E8E2D5] space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-stone-800">
-                <input
-                  type="checkbox"
-                  checked={includeMemory}
-                  onChange={(e) => setIncludeMemory(e.target.checked)}
-                  className="rounded border-[#C5A880] text-[#081C15] focus:ring-[#C5A880]"
-                />
-                <span>Attach Dining Memory Photograph</span>
-              </label>
-              <span className="text-[10px] uppercase font-bold text-[#997E46]">
-                +50 Mayflower Stars
-              </span>
-            </div>
-
-            {includeMemory && (
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                {MEMORY_PRESETS.map((mem, idx) => (
-                  <button
-                    key={mem.title}
-                    type="button"
-                    onClick={() => setSelectedMemoryIndex(idx)}
-                    className={`p-1 rounded border text-left cursor-pointer transition-all ${
-                      selectedMemoryIndex === idx
-                        ? 'border-[#C5A880] ring-2 ring-[#C5A880]/30 bg-white'
-                        : 'border-[#E8E2D5] bg-stone-50 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <img
-                      src={mem.imageUrl}
-                      alt={mem.title}
-                      className="w-full h-12 object-cover rounded"
-                      referrerPolicy="no-referrer"
-                    />
-                    <p className="text-[9px] font-semibold text-[#081C15] truncate mt-1">
-                      {mem.title}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Footer Actions */}

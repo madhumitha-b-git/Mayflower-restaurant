@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TabType, UserProfile } from '../../types';
+import { useSafeNavigate, useSafeLocation } from '../../routes/roleRoutes';
 import { MainHeader } from '../MainHeader';
 import { MasterFooter } from '../MasterFooter';
 import { OverviewView } from '../../views/OverviewView';
@@ -16,10 +17,38 @@ interface Props {
 }
 
 export const SuperAdminDashboardV2: React.FC<Props> = ({ user, onLogout: _onLogout, onSwitchRole: _onSwitchRole }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const navigate = useSafeNavigate();
+  const location = useSafeLocation();
+
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    if (location.pathname.includes('/outlets')) return 'outlets';
+    if (location.pathname.includes('/users') || location.pathname.includes('/staff')) return 'staff';
+    if (location.pathname.includes('/customers')) return 'customers';
+    if (location.pathname.includes('/integrations') || location.pathname.includes('/roles-permissions')) return 'roles-permissions';
+    if (location.pathname.includes('/audit')) return 'audit-log';
+    return 'overview';
+  });
+
+  useEffect(() => {
+    if (location.pathname.includes('/outlets')) setActiveTab('outlets');
+    else if (location.pathname.includes('/users') || location.pathname.includes('/staff')) setActiveTab('staff');
+    else if (location.pathname.includes('/customers')) setActiveTab('customers');
+    else if (location.pathname.includes('/integrations') || location.pathname.includes('/roles-permissions')) setActiveTab('roles-permissions');
+    else if (location.pathname.includes('/audit')) setActiveTab('audit-log');
+    else setActiveTab('overview');
+  }, [location.pathname]);
 
   const handleNavigate = (tab: TabType) => {
     setActiveTab(tab);
+    const routeMap: Record<TabType, string> = {
+      'overview': '/superadmin/overview',
+      'outlets': '/superadmin/outlets',
+      'staff': '/superadmin/users',
+      'customers': '/superadmin/customers',
+      'roles-permissions': '/superadmin/integrations',
+      'audit-log': '/superadmin/audit',
+    };
+    navigate(routeMap[tab] || '/superadmin');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

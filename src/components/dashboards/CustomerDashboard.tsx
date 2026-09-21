@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { UserProfile } from '../../types';
 import { getDataProvider } from '../../data/DataProvider';
+import { useSafeNavigate, useSafeLocation } from '../../routes/roleRoutes';
 import { PlanYourVisit } from '../PlanYourVisit';
 
 import { PatronProfile, Reservation, Review, SalonVenue, ReviewMemory } from './customer/types';
@@ -38,16 +39,16 @@ const FEEDBACK_BONUS = 100;
 const getVenueImage = (outletName: string): string => {
   const lower = (outletName || '').toLowerCase();
   if (lower.includes('poes')) {
-    return 'https://lh3.googleusercontent.com/aida/AEtjO1Wo3D-NxlZuevsKxWUQc0PzydoS3peIKmiYY6QtnfINRqzJH02yMjS0jyQlLRrPcoks-ukpVd6K5xWLyyhHQfFjxQqZOa5nNWJDBuHYrJTu72nmEU_bCgxQC3pO96YcOrOBKTFu19K5R4fqScnrXH4aKPDEVBcylGJeaLUSEUSH_sHUoCntMrsXi7J-tSUZiq1jax_EwSzs4k4oDLdcrB_MwsYmDDYbVFyhMy_SpJiZyTGzd7-K2F880LY';
+    return 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80';
   }
   if (lower.includes('ecr') || lower.includes('palavakkam') || lower.includes('seaside')) {
-    return 'https://lh3.googleusercontent.com/aida/AEtjO1XW-PaWkerRX2rvFgm1YiLEKzo5LKFtMeTwMs7UiL6mhBQmcC9lbh-mMmopPY6Axaih3QQJvZJLq-mdcjNJV0lkD6d0GM4CmajtbU08da42C-tGwMh2UFcISgk52hMt3mo_zpQFrrCoeVW39FSWDg2p0XyuSM7qlEXhXtrzfjy6H1eD4eEG7ew3t-eFhUYJh0ggjPCLpbdKF2q3uHm2oH1j2khFg7JFK4uzGYuZVS8tekVuTXpiceih4Bg';
+    return 'https://images.unsplash.com/photo-1537047902294-62a40c20a6ae?auto=format&fit=crop&w=1200&q=80';
   }
   if (lower.includes('anna')) {
-    return 'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?q=80&w=1000&auto=format&fit=crop';
+    return 'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?auto=format&fit=crop&w=1200&q=80';
   }
   // Egmore & default
-  return 'https://lh3.googleusercontent.com/aida/AEtjO1XKIlQBg8XDWITGCIcXI6RJC_RINGskS7HFz_6rq_LI4WMvZ3BqiEPW08_fkxqfIjyp5jsZ6zRJAQ-AEMHP_1XqncR6UGUOOwxqaichKeou8aGL_gWOj-ReFqc8Rru0UxozJi4PyVEXIbP9wypwYPJ_sIAfE5Bs9UTP0zRNll_fy8GZLCTUIbLaTxNp6pdyHqgO19bnaH6jWRVPydTBya32inEkSmbflUk207E_x8B_X8fPT_ukjEe1hXY';
+  return 'https://images.unsplash.com/photo-1559925393-8be0ec4767c8?auto=format&fit=crop&w=1200&q=80';
 };
 
 const getSalonTag = (outletName: string): string => {
@@ -136,9 +137,26 @@ export const CustomerDashboard: React.FC<Props> = ({
   const [modifyingReservation, setModifyingReservation] = useState<Reservation | null>(null);
   const [isFranchiseModalOpen, setIsFranchiseModalOpen] = useState(false);
   const [franchiseEnquiries, setFranchiseEnquiries] = useState<any[]>([]);
-
-  // Notification Toast State
   const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  const navigate = useSafeNavigate();
+  const location = useSafeLocation();
+
+  useEffect(() => {
+    if (location.pathname === '/customer/reservations') {
+      setShowReservationWizard(true);
+      setIsProfileOpen(false);
+      setIsRewardsOpen(false);
+    } else if (location.pathname === '/customer/profile') {
+      setIsProfileOpen(true);
+      setIsRewardsOpen(false);
+      setShowReservationWizard(false);
+    } else if (location.pathname === '/customer/rewards') {
+      setIsRewardsOpen(true);
+      setIsProfileOpen(false);
+      setShowReservationWizard(false);
+    }
+  }, [location.pathname]);
 
   const showToast = (title: string, message: string) => {
     const id = Date.now().toString();
@@ -327,6 +345,7 @@ export const CustomerDashboard: React.FC<Props> = ({
     } else {
       setTargetOutlet('Poes Garden');
     }
+    navigate('/customer/reservations');
     setShowReservationWizard(true);
   };
 
@@ -593,8 +612,14 @@ export const CustomerDashboard: React.FC<Props> = ({
         {/* Patron Membership Card */}
         <PatronCard
           patron={patron}
-          onOpenRewards={() => setIsRewardsOpen(true)}
-          onOpenProfile={() => setIsProfileOpen(true)}
+          onOpenRewards={() => {
+            navigate('/customer/rewards');
+            setIsRewardsOpen(true);
+          }}
+          onOpenProfile={() => {
+            navigate('/customer/profile');
+            setIsProfileOpen(true);
+          }}
         />
 
         {/* Quick Actions Grid */}
@@ -742,13 +767,19 @@ export const CustomerDashboard: React.FC<Props> = ({
 
       <RewardsModal
         isOpen={isRewardsOpen}
-        onClose={() => setIsRewardsOpen(false)}
+        onClose={() => {
+          setIsRewardsOpen(false);
+          if (location.pathname.startsWith('/customer/rewards')) navigate('/customer');
+        }}
         patron={patron}
       />
 
       <PatronProfileModal
         isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
+        onClose={() => {
+          setIsProfileOpen(false);
+          if (location.pathname.startsWith('/customer/profile')) navigate('/customer');
+        }}
         patron={patron}
         user={user}
         onUpdateSuccess={handleProfileUpdateSuccess}

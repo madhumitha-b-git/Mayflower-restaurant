@@ -1,50 +1,373 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Building2, CheckSquare, ClipboardList, Clock, FileText, LogOut, MessageSquare, Plus, RefreshCw, Search, Star, Table2, Users, X } from 'lucide-react';
+import { AlertCircle, Building2, CheckSquare, ClipboardList, Clock, FileText, LogOut, Plus, RefreshCw, Search, Star, Table2, Users, X, UtensilsCrossed } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
 import { AdminOperationalData, createStaffMember, fetchAdminOperationalData, toggleStaffActive, updateStaffAssignment } from '../../lib/adminService';
 import { FranchiseAdminPanel } from './admin/FranchiseAdminPanel';
+import { MenuAdminPanel } from './admin/MenuAdminPanel';
+import { useFranchiseEnquiries } from '../../hooks/useAppData';
+import { useSafeNavigate, useSafeLocation } from '../../routes/roleRoutes';
+import { isValidEmailDomain, EMAIL_VALIDATION_MESSAGE } from '../../lib/validation';
 
-interface Props { user: UserProfile; onLogout: () => void; onSwitchRole?: (role: string) => void; }
+interface Props {
+  user: UserProfile;
+  onLogout: () => void;
+  onSwitchRole?: (role: string) => void;
+}
+
 const empty: AdminOperationalData = { staff: [], outlets: [], tables: [], reservations: [], checklists: [], tasks: [], feedback: [], franchiseLeads: [], auditLogs: [] };
 const roles: UserRole[] = ['Owner', 'Admin', 'Manager', 'Chef', 'HR', 'Accountant'];
 const date = (v?: string | null) => v ? new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(new Date(v)) : '—';
-const style = (v: unknown) => { const x = String(v).toLowerCase(); return v === true || ['active','confirmed','done','completed','resolved','open'].includes(x) ? 'bg-emerald-50 text-emerald-800' : v === false || ['inactive','cancelled','no-show','unresolved','escalated'].includes(x) ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800'; };
-
-import { useFranchiseEnquiries } from '../../hooks/useAppData';
+const style = (v: unknown) => {
+  const x = String(v).toLowerCase();
+  return v === true || ['active','confirmed','done','completed','resolved','open'].includes(x) ? 'bg-emerald-50 text-emerald-800' : v === false || ['inactive','cancelled','no-show','unresolved','escalated'].includes(x) ? 'bg-red-50 text-red-800' : 'bg-amber-50 text-amber-800';
+};
 
 export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }) => {
-  const [data, setData] = useState(empty); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null); const [notice, setNotice] = useState<string | null>(null);
-  const [query, setQuery] = useState(''); const [outlet, setOutlet] = useState('all'); const [role, setRole] = useState('all'); const [addOpen, setAddOpen] = useState(false);
+  const navigate = useSafeNavigate();
+  const location = useSafeLocation();
+
+  const [data, setData] = useState(empty);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [outlet, setOutlet] = useState('all');
+  const [role, setRole] = useState('all');
+  const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', mobile: '', password: '', role: 'Manager' as UserRole, outlet: '' });
-  
+
   const { data: franchiseEnquiries, refetch: refetchFranchise } = useFranchiseEnquiries(user);
 
-  const load = async () => { setLoading(true); setError(null); try { setData(await fetchAdminOperationalData()); refetchFranchise(); } catch (e) { setError(e instanceof Error ? e.message : 'Unable to load administrative data.'); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, []); useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(null), 3500); return () => clearTimeout(t); }, [notice]);
+  // Sub-route tab detection
+  const currentSubTab = useMemo(() => {
+    if (location.pathname.includes('/menu')) return 'menu';
+    if (location.pathname.includes('/franchise')) return 'franchise';
+    if (location.pathname.includes('/outlets')) return 'outlets';
+    return 'overview';
+  }, [location.pathname]);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setData(await fetchAdminOperationalData());
+      refetchFranchise();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to load administrative data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 3500);
+    return () => clearTimeout(t);
+  }, [notice]);
+
   const filteredStaff = useMemo(() => data.staff.filter(s => `${s.name} ${s.email} ${s.role} ${s.outlet_name ?? s.outlet ?? ''}`.toLowerCase().includes(query.toLowerCase()) && (role === 'all' || s.role === role) && (outlet === 'all' || s.outlet_name === outlet || s.outlet === outlet)), [data.staff, query, role, outlet]);
   const byOutlet = <T extends { outlet?: string | null }>(rows: T[]) => outlet === 'all' ? rows : rows.filter(r => r.outlet === outlet);
-  const editAssignment = async (staff: any) => { const nextRole = window.prompt('Role', staff.role); const nextOutlet = window.prompt('Outlet name (blank unassigns)', staff.outlet_name ?? staff.outlet ?? ''); if (!nextRole || !roles.includes(nextRole as UserRole)) return; const result = await updateStaffAssignment(staff.id, nextRole as UserRole, nextOutlet || null); setNotice(result.error ?? `${staff.name}'s assignment updated.`); if (!result.error) void load(); };
-  const submit = async (e: React.FormEvent) => { e.preventDefault(); const result = await createStaffMember(form); setNotice(result.error ?? 'Staff user provisioned.'); if (!result.error) { setAddOpen(false); setForm({ name: '', email: '', mobile: '', password: '', role: 'Manager', outlet: '' }); void load(); } };
-  const metrics = [['Active staff', data.staff.filter(s => s.is_active).length, Users], ['Today’s reservations', data.reservations.filter(r => r.reservation_date === new Date().toISOString().slice(0, 10)).length, Clock], ['Open tasks', data.tasks.filter(t => !['Done','Completed'].includes(t.status)).length, CheckSquare], ['Unresolved feedback', data.feedback.filter(f => !f.is_resolved).length, Star]] as const;
-  return <div className="min-h-screen bg-[#fbf9f5] pb-16 font-sans text-[#1b1c1a]">
-    {notice && <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-[#02150c] px-4 py-3 text-xs font-semibold text-white shadow-xl">{notice}</div>}
-    <header className="sticky top-10 z-40 border-b border-[#e4e2de] bg-[#fbf9f5]/95 backdrop-blur"><div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-6"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#02150c] font-serif text-xl font-bold text-[#e4c27d]">M</div><div><div className="font-serif text-lg font-bold text-[#02150c]">Mayflower</div><div className="text-[10px] font-bold uppercase tracking-widest text-[#745b20]">Administration</div></div></div><div className="flex gap-2">{onSwitchRole && user.role === 'SuperAdmin' && <select onChange={e => onSwitchRole(e.target.value)} defaultValue="admin-suite" className="rounded-lg border border-[#e4e2de] bg-white px-2 py-1.5 text-xs"><option value="admin-suite">Admin console</option><option value="owner-management">Owner dashboard</option><option value="manager-operations">Operations</option></select>}<button onClick={onLogout} className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700"><LogOut className="h-3.5 w-3.5" />Logout</button></div></div></header>
-    <main className="mx-auto max-w-7xl space-y-6 px-6 pt-6"><section className="rounded-2xl border border-[#e4e2de] bg-white p-6 shadow-sm"><div className="flex flex-col justify-between gap-4 md:flex-row"><div><span className="text-[10px] font-bold uppercase tracking-widest text-[#745b20]">Operational configuration</span><h1 className="font-serif text-3xl font-bold text-[#02150c]">Admin Dashboard</h1><p className="mt-1 max-w-2xl text-xs text-[#424844]">Manage people, outlets, service capacity, guest workflows and operational controls. Data is loaded from Supabase.</p></div><button onClick={() => void load()} disabled={loading} className="flex h-fit items-center gap-1 rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2 text-xs font-bold"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh</button></div>{error && <div className="mt-4 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800"><AlertCircle className="h-4 w-4 shrink-0" />{error}</div>}<div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">{metrics.map(([label, value, Icon]) => <div key={label} className="rounded-xl border border-[#e4e2de] bg-[#f5f3ef] p-4"><div className="flex justify-between text-[10px] font-bold uppercase text-[#424844]"><span>{label}</span><Icon className="h-4 w-4 text-[#745b20]" /></div><div className="mt-2 text-2xl font-bold text-[#02150c]">{value}</div></div>)}</div></section>
-      <Panel title="User, role and outlet assignment" eyebrow="People & access" icon={Users} action={<button onClick={() => setAddOpen(true)} className="flex items-center gap-1 rounded-lg bg-[#02150c] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5" />Add staff</button>}><div className="mb-4 flex flex-col gap-2 md:flex-row"><label className="relative flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search people, roles or outlets" className="w-full rounded-xl border border-[#e4e2de] bg-[#f5f3ef] py-2 pl-9 pr-3 text-xs" /></label><select value={role} onChange={e => setRole(e.target.value)} className="rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2 text-xs"><option value="all">All roles</option>{roles.map(r => <option key={r}>{r}</option>)}</select><OutletSelect outlets={data.outlets} value={outlet} onChange={setOutlet} /></div><div className="overflow-x-auto rounded-xl border border-[#e4e2de]"><table className="w-full min-w-[700px] text-left text-xs"><thead className="bg-[#f5f3ef] uppercase text-[#424844]"><tr><th className="p-3">Person</th><th className="p-3">Role</th><th className="p-3">Outlet</th><th className="p-3">Status</th><th className="p-3">Controls</th></tr></thead><tbody className="divide-y divide-[#e4e2de]">{filteredStaff.map(s => <tr key={s.id}><td className="p-3"><b className="text-[#02150c]">{s.name}</b><div className="mt-0.5 text-gray-500">{s.email}</div></td><td className="p-3">{s.role}</td><td className="p-3">{s.outlet_name ?? s.outlet ?? 'Unassigned'}</td><td className="p-3"><Badge value={s.is_active ? 'Active' : 'Inactive'} /></td><td className="p-3"><button onClick={() => void editAssignment(s)} className="font-bold text-[#745b20] hover:underline">Edit assignment</button><button onClick={async () => { const r = await toggleStaffActive(s.id, !s.is_active); setNotice(r.error ?? `${s.name} is now ${s.is_active ? 'inactive' : 'active'}.`); if (!r.error) void load(); }} className="ml-3 text-[#424844] hover:underline">{s.is_active ? 'Deactivate' : 'Activate'}</button></td></tr>)}{!loading && filteredStaff.length === 0 && <tr><td colSpan={5} className="p-5 text-center text-gray-500">No staff match the current filters.</td></tr>}</tbody></table></div></Panel>
-      <div className="grid gap-6 xl:grid-cols-2"><Panel title="Outlets and service configuration" eyebrow="Outlet administration" icon={Building2}><List rows={byOutlet(data.outlets)} empty="No outlets found." render={o => <><b>{o.name}</b><span>{o.area ?? 'No area set'} · {o.opening_time ?? '—'}–{o.closing_time ?? '—'} · {o.tables_count ?? 0} tables / {o.covers_count ?? 0} covers</span><Badge value={o.is_active ? 'Active' : 'Inactive'} /></>} /></Panel><Panel title="Tables and current service status" eyebrow="Table management" icon={Table2}><List rows={byOutlet(data.tables).slice(0, 8)} empty="No table records available." render={t => <><b>{t.name ?? t.table_number ?? 'Table'}</b><span>{t.outlet ?? t.outlets?.name ?? 'Unassigned'} · {t.seats ?? t.capacity ?? '—'} covers</span><Badge value={t.status ?? (t.is_active === false ? 'Inactive' : 'Available')} /></>} /></Panel></div>
-      <div className="grid gap-6 xl:grid-cols-2"><Panel title="Recent reservations" eyebrow="Reservation administration" icon={Clock}><List rows={byOutlet(data.reservations).slice(0, 6)} empty="No reservations available." render={r => <><b>{r.booking_code ?? 'Reservation'}</b><span>{r.outlet} · {date(r.reservation_date)} · {r.guests ?? 0} guests</span><Badge value={r.status} /></>} /></Panel><Panel title="Active operational checklists" eyebrow="SOP & checklists" icon={ClipboardList}><List rows={byOutlet(data.checklists).slice(0, 6)} empty="No SOP or checklist records available." render={s => <><b>{s.title ?? s.name}</b><span>{s.outlet ?? s.outlets?.name ?? 'All outlets'} · {s.frequency ?? s.category ?? 'Operational SOP'}</span><Badge value={s.is_active === false ? 'Inactive' : 'Active'} /></>} /></Panel></div>
-      <div className="grid gap-6 xl:grid-cols-2"><Panel title="Operational tasks" eyebrow="Task management" icon={CheckSquare}><List rows={byOutlet(data.tasks).slice(0, 6)} empty="No tasks available." render={t => <><b>{t.title}</b><span>{t.outlet ?? 'All outlets'} · due {date(t.due_date)}</span><Badge value={t.status} /></>} /></Panel><Panel title="Guest feedback requiring attention" eyebrow="Feedback management" icon={MessageSquare}><List rows={(byOutlet(data.feedback as any[]) as any[]).filter((f: any) => !f.is_resolved).slice(0, 6)} empty="No unresolved feedback." render={f => <><b>{f.category ?? 'Guest feedback'} · {f.rating ?? '—'}/5</b><span>{f.outlet} · {f.message ?? f.comment ?? 'No message supplied'}</span><Badge value="Unresolved" /></>} /></Panel></div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <FranchiseAdminPanel enquiries={franchiseEnquiries} onUpdate={() => void load()} />
-      </div>
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title="Recent administrative activity" eyebrow="Basic activity records" icon={FileText}>
-          <List rows={data.auditLogs.slice(0, 6)} empty="No activity records available." render={l => <><b>{l.action}</b><span>{l.actor_name ?? 'System'} · {l.entity ?? 'application'} · {date(l.created_at)}</span><Badge value={l.actor_role ?? 'System'} /></>} />
-        </Panel>
-      </div>
-    </main>{addOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"><form onSubmit={submit} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-6 shadow-2xl"><div className="flex justify-between"><div><span className="text-[10px] font-bold uppercase tracking-widest text-[#745b20]">Access provisioning</span><h2 className="font-serif text-xl font-bold">Add staff user</h2></div><button type="button" onClick={() => setAddOpen(false)}><X className="h-5 w-5" /></button></div>{(['name','email','mobile','password'] as const).map(k => <input key={k} required={k !== 'mobile'} type={k === 'email' ? 'email' : k === 'password' ? 'password' : 'text'} minLength={k === 'password' ? 6 : undefined} placeholder={k === 'password' ? 'Temporary password' : k[0].toUpperCase() + k.slice(1)} value={form[k]} onChange={e => setForm({ ...form, [k]: e.target.value })} className="field w-full" />)}<div className="grid grid-cols-2 gap-3"><select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as UserRole })} className="field">{roles.map(r => <option key={r}>{r}</option>)}</select><select value={form.outlet} onChange={e => setForm({ ...form, outlet: e.target.value })} className="field"><option value="">Unassigned</option>{data.outlets.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}</select></div><button className="w-full rounded-xl bg-[#02150c] py-2.5 text-xs font-bold text-white">Provision staff user</button></form></div>}</div>;
+
+  const editAssignment = async (staff: any) => {
+    const nextRole = window.prompt('Role', staff.role);
+    const nextOutlet = window.prompt('Outlet name (blank unassigns)', staff.outlet_name ?? staff.outlet ?? '');
+    if (!nextRole || !roles.includes(nextRole as UserRole)) return;
+    const result = await updateStaffAssignment(staff.id, nextRole as UserRole, nextOutlet || null);
+    setNotice(result.error ?? `${staff.name}'s assignment updated.`);
+    if (!result.error) void load();
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isValidEmailDomain(form.email)) {
+      setNotice(EMAIL_VALIDATION_MESSAGE);
+      return;
+    }
+    const result = await createStaffMember(form);
+    setNotice(result.error ?? 'Staff user provisioned.');
+    if (!result.error) {
+      setAddOpen(false);
+      setForm({ name: '', email: '', mobile: '', password: '', role: 'Manager', outlet: '' });
+      void load();
+    }
+  };
+
+  const metrics = [
+    ['Active staff', data.staff.filter(s => s.is_active).length, Users],
+    ['Today’s reservations', data.reservations.filter(r => r.reservation_date === new Date().toISOString().slice(0, 10)).length, Clock],
+    ['Open tasks', data.tasks.filter(t => !['Done','Completed'].includes(t.status)).length, CheckSquare],
+    ['Unresolved feedback', data.feedback.filter(f => !f.is_resolved).length, Star]
+  ] as const;
+
+  return (
+    <div className="min-h-screen bg-[#fbf9f5] pb-16 font-sans text-[#1b1c1a]">
+      {notice && (
+        <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-[#02150c] px-4 py-3 text-xs font-semibold text-white shadow-xl">
+          {notice}
+        </div>
+      )}
+
+      {/* Admin Subnav Header */}
+      <header className="sticky top-10 z-40 border-b border-[#e4e2de] bg-[#fbf9f5]/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#02150c] font-serif text-lg font-bold text-[#e4c27d]">
+              M
+            </div>
+            <div>
+              <div className="font-serif text-base font-bold text-[#02150c]">Mayflower</div>
+              <div className="text-[9px] font-bold uppercase tracking-widest text-[#745b20]">Administration</div>
+            </div>
+          </div>
+
+          {/* Subroutes Navigation Bar */}
+          <nav className="hidden sm:flex items-center gap-1 bg-[#edeae4] p-1 rounded-xl text-xs font-semibold">
+            <button
+              onClick={() => navigate('/admin')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                currentSubTab === 'overview' ? 'bg-white text-[#02150c] shadow-xs' : 'text-stone-600 hover:text-black'
+              }`}
+            >
+              Overview & Staff
+            </button>
+            <button
+              onClick={() => navigate('/admin/menu')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentSubTab === 'menu' ? 'bg-white text-[#02150c] shadow-xs' : 'text-stone-600 hover:text-black'
+              }`}
+            >
+              <UtensilsCrossed className="w-3.5 h-3.5" />
+              Menu Catalog
+            </button>
+            <button
+              onClick={() => navigate('/admin/franchise')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentSubTab === 'franchise' ? 'bg-white text-[#02150c] shadow-xs' : 'text-stone-600 hover:text-black'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              Franchise
+            </button>
+            <button
+              onClick={() => navigate('/admin/outlets')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                currentSubTab === 'outlets' ? 'bg-white text-[#02150c] shadow-xs' : 'text-stone-600 hover:text-black'
+              }`}
+            >
+              Outlets & Capacity
+            </button>
+          </nav>
+
+          <div className="flex gap-2">
+            {onSwitchRole && user.role === 'SuperAdmin' && (
+              <select
+                onChange={e => onSwitchRole(e.target.value)}
+                defaultValue="admin-suite"
+                className="rounded-lg border border-[#e4e2de] bg-white px-2 py-1.5 text-xs"
+              >
+                <option value="admin-suite">Admin console</option>
+                <option value="owner-management">Owner dashboard</option>
+                <option value="manager-operations">Operations</option>
+              </select>
+            )}
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl space-y-6 px-6 pt-6">
+        
+        {/* KPI Section */}
+        <section className="rounded-2xl border border-[#e4e2de] bg-white p-6 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 md:flex-row">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-[#745b20]">Operational configuration</span>
+              <h1 className="font-serif text-3xl font-bold text-[#02150c]">Admin Dashboard</h1>
+              <p className="mt-1 max-w-2xl text-xs text-[#424844]">Manage people, menu offerings, outlets, service capacity, and franchise pipeline.</p>
+            </div>
+            <button
+              onClick={() => void load()}
+              disabled={loading}
+              className="flex h-fit items-center gap-1 rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2 text-xs font-bold"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
+            </button>
+          </div>
+          {error && (
+            <div className="mt-4 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+              <AlertCircle className="h-4 w-4 shrink-0" />{error}
+            </div>
+          )}
+          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {metrics.map(([label, value, Icon]) => (
+              <div key={label} className="rounded-xl border border-[#e4e2de] bg-[#f5f3ef] p-4">
+                <div className="flex justify-between text-[10px] font-bold uppercase text-[#424844]">
+                  <span>{label}</span>
+                  <Icon className="h-4 w-4 text-[#745b20]" />
+                </div>
+                <div className="mt-2 text-2xl font-bold text-[#02150c]">{value}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Dynamic Subview Display */}
+        {currentSubTab === 'menu' && (
+          <MenuAdminPanel />
+        )}
+
+        {currentSubTab === 'franchise' && (
+          <div className="grid gap-6">
+            <FranchiseAdminPanel enquiries={franchiseEnquiries} onUpdate={() => void load()} />
+          </div>
+        )}
+
+        {currentSubTab === 'outlets' && (
+          <div className="grid gap-6 xl:grid-cols-2">
+            <Panel title="Outlets and service configuration" eyebrow="Outlet administration" icon={Building2}>
+              <List rows={byOutlet(data.outlets)} empty="No outlets found." render={o => <><b>{o.name}</b><span>{o.area ?? 'No area set'} · {o.opening_time ?? '—'}–{o.closing_time ?? '—'} · {o.tables_count ?? 0} tables / {o.covers_count ?? 0} covers</span><Badge value={o.is_active ? 'Active' : 'Inactive'} /></>} />
+            </Panel>
+            <Panel title="Tables and current service status" eyebrow="Table management" icon={Table2}>
+              <List rows={byOutlet(data.tables).slice(0, 8)} empty="No table records available." render={t => <><b>{t.name ?? t.table_number ?? 'Table'}</b><span>{t.outlet ?? t.outlets?.name ?? 'Unassigned'} · {t.seats ?? t.capacity ?? '—'} covers</span><Badge value={t.status ?? (t.is_active === false ? 'Inactive' : 'Available')} /></>} />
+            </Panel>
+          </div>
+        )}
+
+        {currentSubTab === 'overview' && (
+          <>
+            <Panel title="User, role and outlet assignment" eyebrow="People & access" icon={Users} action={<button onClick={() => setAddOpen(true)} className="flex items-center gap-1 rounded-lg bg-[#02150c] px-3 py-2 text-xs font-bold text-white"><Plus className="h-3.5 w-3.5" />Add staff</button>}>
+              <div className="mb-4 flex flex-col gap-2 md:flex-row">
+                <label className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                  <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search people, roles or outlets" className="w-full rounded-xl border border-[#e4e2de] bg-[#f5f3ef] py-2 pl-9 pr-3 text-xs" />
+                </label>
+                <select value={role} onChange={e => setRole(e.target.value)} className="rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2 text-xs">
+                  <option value="all">All roles</option>
+                  {roles.map(r => <option key={r}>{r}</option>)}
+                </select>
+                <OutletSelect outlets={data.outlets} value={outlet} onChange={setOutlet} />
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-[#e4e2de]">
+                <table className="w-full min-w-[700px] text-left text-xs">
+                  <thead className="bg-[#f5f3ef] uppercase text-[#424844]">
+                    <tr><th className="p-3">Person</th><th className="p-3">Role</th><th className="p-3">Outlet</th><th className="p-3">Status</th><th className="p-3">Controls</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#e4e2de]">
+                    {filteredStaff.map(s => (
+                      <tr key={s.id}>
+                        <td className="p-3"><b className="text-[#02150c]">{s.name}</b><div className="mt-0.5 text-gray-500">{s.email}</div></td>
+                        <td className="p-3">{s.role}</td>
+                        <td className="p-3">{s.outlet_name ?? s.outlet ?? 'Unassigned'}</td>
+                        <td className="p-3"><Badge value={s.is_active ? 'Active' : 'Inactive'} /></td>
+                        <td className="p-3">
+                          <button onClick={() => void editAssignment(s)} className="font-bold text-[#745b20] hover:underline">Edit assignment</button>
+                          <button onClick={async () => { const r = await toggleStaffActive(s.id, !s.is_active); setNotice(r.error ?? `${s.name} is now ${s.is_active ? 'inactive' : 'active'}.`); if (!r.error) void load(); }} className="ml-3 text-[#424844] hover:underline">{s.is_active ? 'Deactivate' : 'Activate'}</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!loading && filteredStaff.length === 0 && (
+                      <tr><td colSpan={5} className="p-5 text-center text-gray-500">No staff match the current filters.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Panel title="Recent reservations" eyebrow="Reservation administration" icon={Clock}>
+                <List rows={byOutlet(data.reservations).slice(0, 6)} empty="No reservations available." render={r => <><b>{r.booking_code ?? 'Reservation'}</b><span>{r.outlet} · {date(r.reservation_date)} · {r.guests ?? 0} guests</span><Badge value={r.status} /></>} />
+              </Panel>
+              <Panel title="Active operational checklists" eyebrow="SOP & checklists" icon={ClipboardList}>
+                <List rows={byOutlet(data.checklists).slice(0, 6)} empty="No SOP or checklist records available." render={s => <><b>{s.title ?? s.name}</b><span>{s.outlet ?? s.outlets?.name ?? 'All outlets'} · {s.frequency ?? s.category ?? 'Operational SOP'}</span><Badge value={s.is_active === false ? 'Inactive' : 'Active'} /></>} />
+              </Panel>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <FranchiseAdminPanel enquiries={franchiseEnquiries} onUpdate={() => void load()} />
+              <Panel title="Recent administrative activity" eyebrow="Basic activity records" icon={FileText}>
+                <List rows={data.auditLogs.slice(0, 6)} empty="No activity records available." render={l => <><b>{l.action}</b><span>{l.actor_name ?? 'System'} · {l.entity ?? 'application'} · {date(l.created_at)}</span><Badge value={l.actor_role ?? 'System'} /></>} />
+              </Panel>
+            </div>
+          </>
+        )}
+
+      </main>
+
+      {addOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <form onSubmit={submit} className="w-full max-w-md space-y-3 rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#745b20]">Access provisioning</span>
+                <h2 className="font-serif text-xl font-bold">Add staff user</h2>
+              </div>
+              <button type="button" onClick={() => setAddOpen(false)}><X className="h-5 w-5" /></button>
+            </div>
+            {(['name','email','mobile','password'] as const).map(k => (
+              <input
+                key={k}
+                required={k !== 'mobile'}
+                type={k === 'email' ? 'email' : k === 'password' ? 'password' : 'text'}
+                minLength={k === 'password' ? 6 : undefined}
+                placeholder={k === 'password' ? 'Temporary password' : k[0].toUpperCase() + k.slice(1)}
+                value={form[k]}
+                onChange={e => setForm({ ...form, [k]: e.target.value })}
+                className="field w-full px-3 py-2 border rounded-xl text-xs bg-[#f5f3ef]"
+              />
+            ))}
+            <div className="grid grid-cols-2 gap-3">
+              <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value as UserRole })} className="field px-3 py-2 border rounded-xl text-xs bg-[#f5f3ef]">
+                {roles.map(r => <option key={r}>{r}</option>)}
+              </select>
+              <select value={form.outlet} onChange={e => setForm({ ...form, outlet: e.target.value })} className="field px-3 py-2 border rounded-xl text-xs bg-[#f5f3ef]">
+                <option value="">Unassigned</option>
+                {data.outlets.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+              </select>
+            </div>
+            <button className="w-full rounded-xl bg-[#02150c] py-2.5 text-xs font-bold text-white">Provision staff user</button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
 };
-const Panel = ({ title, eyebrow, icon: Icon, action, children }: { title: string; eyebrow: string; icon: React.ElementType; action?: React.ReactNode; children: React.ReactNode }) => <section className="rounded-2xl border border-[#e4e2de] bg-white p-6 shadow-sm"><div className="mb-4 flex items-start justify-between gap-3"><div className="flex gap-2"><Icon className="mt-0.5 h-4 w-4 text-[#745b20]" /><div><div className="text-[10px] font-bold uppercase tracking-widest text-[#745b20]">{eyebrow}</div><h2 className="font-serif text-xl font-bold text-[#02150c]">{title}</h2></div></div>{action}</div>{children}</section>;
+
+const Panel = ({ title, eyebrow, icon: Icon, action, children }: { title: string; eyebrow: string; icon: React.ElementType; action?: React.ReactNode; children: React.ReactNode }) => (
+  <section className="rounded-2xl border border-[#e4e2de] bg-white p-6 shadow-sm">
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="flex gap-2">
+        <Icon className="mt-0.5 h-4 w-4 text-[#745b20]" />
+        <div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#745b20]">{eyebrow}</div>
+          <h2 className="font-serif text-xl font-bold text-[#02150c]">{title}</h2>
+        </div>
+      </div>
+      {action}
+    </div>
+    {children}
+  </section>
+);
+
 const Badge = ({ value }: { value: string }) => <span className={`ml-auto w-fit rounded-full px-2 py-1 text-[10px] font-bold ${style(value)}`}>{value}</span>;
-const List = ({ rows, render, empty }: { rows: any[]; render: (row: any) => React.ReactNode; empty: string }) => <div className="space-y-2">{rows.map(r => <div key={r.id} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2.5 text-xs"><div className="min-w-0 space-y-1">{render(r)}</div></div>)}{rows.length === 0 && <div className="rounded-xl border border-dashed border-[#e4e2de] p-4 text-center text-xs text-gray-500">{empty}</div>}</div>;
-const OutletSelect = ({ outlets, value, onChange }: { outlets: any[]; value: string; onChange: (v: string) => void }) => <select value={value} onChange={e => onChange(e.target.value)} className="rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2 text-xs"><option value="all">All outlets</option>{outlets.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}</select>;
+const List = ({ rows, render, empty }: { rows: any[]; render: (row: any) => React.ReactNode; empty: string }) => (
+  <div className="space-y-2">
+    {rows.map(r => <div key={r.id} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2.5 text-xs"><div className="min-w-0 space-y-1">{render(r)}</div></div>)}
+    {rows.length === 0 && <div className="rounded-xl border border-dashed border-[#e4e2de] p-4 text-center text-xs text-gray-500">{empty}</div>}
+  </div>
+);
+const OutletSelect = ({ outlets, value, onChange }: { outlets: any[]; value: string; onChange: (v: string) => void }) => (
+  <select value={value} onChange={e => onChange(e.target.value)} className="rounded-xl border border-[#e4e2de] bg-[#f5f3ef] px-3 py-2 text-xs">
+    <option value="all">All outlets</option>
+    {outlets.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+  </select>
+);

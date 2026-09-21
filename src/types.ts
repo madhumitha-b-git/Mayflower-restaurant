@@ -1,3 +1,5 @@
+export type AppView = 'website' | 'reservations' | 'dashboard';
+
 export type MenuCategoryType = 
   | 'all'
   | 'dim-sum'

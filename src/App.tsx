@@ -1,34 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Header } from './components/Header';
-import { HeroCarousel } from './components/HeroCarousel';
-import { AboutSection } from './components/AboutSection';
-import { MayflowerGallery } from './components/MayflowerGallery';
-import { MenuSection } from './components/MenuSection';
-import { MayflowerMomentCards } from './components/MayflowerMomentCards';
-import { OutletsSection } from './components/OutletsSection';
-import { TestimonialsSection } from './components/TestimonialsSection';
-import { ContactSection } from './components/ContactSection';
-import { Footer } from './components/Footer';
-import { PlanYourVisit } from './components/PlanYourVisit';
-import { Modals } from './components/Modals';
-import { AuthModal } from './components/AuthModal';
-import { LoyaltyDashboardModal } from './components/LoyaltyDashboardModal';
-import { MobileBottomNav } from './components/MobileBottomNav';
-import { RoleDashboard } from './components/dashboards/RoleDashboard';
-import { FranchiseEnquiryForm } from './components/FranchiseEnquiryForm';
-import { ActiveModalType, UserProfile } from './types';
-import { WelcomeEmailData } from './data/userStorage';
+﻿import { useState, useEffect } from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { UserProfile } from './types';
 import { fetchUserProfile, getSupabaseCurrentUser, supabaseLogout } from './lib/authService';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
-
-export type AppView = 'website' | 'reservations' | 'dashboard';
+import { AppRoutes } from './routes/AppRoutes';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<AppView>(() => {
-    return (localStorage.getItem('mayflower_active_view') as AppView) || 'website';
-  });
-  const [activeModal, setActiveModal] = useState<ActiveModalType>('none');
-  const [targetOutlet, setTargetOutlet] = useState<string>('Poes Garden');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem('mayflower_current_user');
@@ -37,12 +14,6 @@ export default function App() {
       return null;
     }
   });
-  const [welcomeEmail, setWelcomeEmail] = useState<WelcomeEmailData | null>(null);
-
-  // Sync activeView to localStorage
-  useEffect(() => {
-    localStorage.setItem('mayflower_active_view', activeView);
-  }, [activeView]);
 
   // Sync currentUser to localStorage
   useEffect(() => {
@@ -63,7 +34,6 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         setCurrentUser(null);
-        setActiveView('website');
       } else {
         fetchUserProfile(session.user.id).then(setCurrentUser).catch(() => {});
       }
@@ -83,200 +53,28 @@ export default function App() {
     };
   }, []);
 
-  const isStaff = Boolean(currentUser && currentUser.role && currentUser.role !== 'Customer');
-  const canReserveTable = !isStaff;
-
-  useEffect(() => {
-    if (isStaff && activeView === 'reservations') {
-      setActiveView('website');
-    }
-  }, [isStaff, activeView]);
-
-  const scrollToSection = (sectionId: string) => {
-    setActiveView('website');
-    setTimeout(() => {
-      const element = document.getElementById(sectionId);
-      if (element) element.scrollIntoView({ behavior: 'smooth' });
-      else window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, 50);
-  };
-
-  const handleOpenReservations = (outletName?: string) => {
-    if (isStaff) return;
-    if (outletName) setTargetOutlet(outletName);
-    setActiveView('reservations');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleBackToWebsite = () => {
-    setActiveView('website');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const [intentAfterLogin, setIntentAfterLogin] = useState<string | null>(null);
-
-  const handleOpenDashboard = () => {
-    setActiveView('dashboard');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleLoginSuccess = (user: UserProfile, emailData?: WelcomeEmailData) => {
+  const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
-    if (emailData) setWelcomeEmail(emailData);
-    
-    if (intentAfterLogin === 'franchise') {
-      setActiveModal('franchise');
-      setIntentAfterLogin(null);
-    } else {
-      setActiveModal('none');
-      setActiveView('dashboard');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
   };
 
   const handleLogout = () => {
     supabaseLogout();
-    localStorage.removeItem('mayflower_active_view');
     localStorage.removeItem('mayflower_current_user');
     setCurrentUser(null);
-    setWelcomeEmail(null);
-    setActiveModal('none');
-    setActiveView('website');
-  };
-
-  const handleOpenFranchise = () => {
-    if (!currentUser) {
-      setIntentAfterLogin('franchise');
-      setActiveModal('auth');
-    } else {
-      setActiveModal('franchise');
-    }
-  };
-
-  const handleOpenModal = (modalType: ActiveModalType) => {
-    if (modalType === 'franchise') {
-      handleOpenFranchise();
-    } else {
-      setActiveModal(modalType);
-    }
   };
 
   const handleUpdateUser = (updatedUser: UserProfile) => {
     setCurrentUser(updatedUser);
   };
 
-  // Dashboard view — full page, with back-to-website handled inside RoleDashboard
-  if (activeView === 'dashboard' && currentUser) {
-    return (
-      <RoleDashboard
-        user={currentUser}
+  return (
+    <BrowserRouter>
+      <AppRoutes
+        currentUser={currentUser}
+        onLoginSuccess={handleLoginSuccess}
         onLogout={handleLogout}
-        onBackToWebsite={handleBackToWebsite}
-        onOpenReservations={() => handleOpenReservations()}
         onUpdateUser={handleUpdateUser}
       />
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#1A1A1A] selection:bg-[#D1CDBC] selection:text-[#1A1A1A] pb-16 md:pb-0">
-      <Header
-        activeView={activeView}
-        currentUser={currentUser}
-        canReserveTable={canReserveTable}
-        onNavigate={scrollToSection}
-        onOpenReservations={() => handleOpenReservations()}
-        onBackToWebsite={handleBackToWebsite}
-        onOpenFranchise={handleOpenFranchise}
-        onOpenAuth={() => setActiveModal('auth')}
-        onOpenLoyalty={() => setActiveModal('loyalty')}
-        onOpenDashboard={handleOpenDashboard}
-        onLogout={handleLogout}
-      />
-
-      <main className="flex-1">
-        {activeView === 'website' ? (
-          <>
-            <HeroCarousel
-              canReserveTable={canReserveTable}
-              onPlanVisit={() => handleOpenReservations()}
-              onExploreMenu={() => scrollToSection('menu')}
-            />
-            <AboutSection />
-            <MayflowerGallery />
-            <MenuSection
-              canReserveTable={canReserveTable}
-              onPlanVisit={() => handleOpenReservations()}
-              onRequestCellar={() => setActiveModal('cellar')}
-            />
-            <MayflowerMomentCards
-              currentUser={currentUser}
-              onOpenAuth={() => setActiveModal('auth')}
-              onUpdateUser={handleUpdateUser}
-            />
-            <OutletsSection
-              canReserveTable={canReserveTable}
-              onReserveOutlet={(outletName) => handleOpenReservations(outletName)}
-            />
-            <TestimonialsSection />
-            <ContactSection
-              onOpenModal={handleOpenModal}
-              onOpenFranchise={handleOpenFranchise}
-            />
-          </>
-        ) : (
-          <PlanYourVisit
-            initialOutlet={targetOutlet}
-            currentUser={currentUser}
-            onUpdateUser={handleUpdateUser}
-            onRequestSignIn={() => setActiveModal('auth')}
-            onBackToWebsite={handleBackToWebsite}
-          />
-        )}
-      </main>
-
-      <Footer
-        canReserveTable={canReserveTable}
-        onNavigate={scrollToSection}
-        onPlanVisit={() => handleOpenReservations()}
-      />
-
-      <Modals
-        activeModal={activeModal}
-        currentUser={currentUser}
-        onClose={() => setActiveModal('none')}
-      />
-
-      <AuthModal
-        isOpen={activeModal === 'auth'}
-        onClose={() => { setActiveModal('none'); setIntentAfterLogin(null); }}
-        onLoginSuccess={handleLoginSuccess}
-        initialMode={intentAfterLogin ? 'login' : 'register'}
-      />
-
-      <LoyaltyDashboardModal
-        isOpen={activeModal === 'loyalty'}
-        user={currentUser}
-        welcomeEmail={welcomeEmail}
-        onClose={() => setActiveModal('none')}
-        onLogout={handleLogout}
-        onNavigateToGiftCards={() => scrollToSection('moment-cards')}
-      />
-
-      {activeModal === 'franchise' && (
-        <FranchiseEnquiryForm
-          user={currentUser}
-          onClose={() => setActiveModal('none')}
-        />
-      )}
-
-      <MobileBottomNav
-        activeView={activeView}
-        canReserveTable={canReserveTable}
-        onNavigate={scrollToSection}
-        onOpenReservations={() => handleOpenReservations()}
-        onBackToWebsite={handleBackToWebsite}
-      />
-    </div>
+    </BrowserRouter>
   );
 }

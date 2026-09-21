@@ -3,6 +3,7 @@ import { X, Eye, EyeOff, CheckCircle2, RefreshCw } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabaseLogin, supabaseRegister } from '../lib/authService';
 import { supabase } from '../lib/supabaseClient';
+import { isValidEmailDomain, EMAIL_VALIDATION_MESSAGE } from '../lib/validation';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -64,6 +65,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMsg('Please enter your email and password.');
       return;
     }
+    if (!isValidEmailDomain(email.trim())) {
+      setErrorMsg(EMAIL_VALIDATION_MESSAGE);
+      return;
+    }
     setLoading(true);
     const res = await supabaseLogin(email.trim(), password);
     setLoading(false);
@@ -85,8 +90,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMsg('Please enter your full name.');
       return;
     }
-    if (!email.trim() || !email.includes('@')) {
-      setErrorMsg('Please enter a valid email address.');
+    if (!isValidEmailDomain(email.trim())) {
+      setErrorMsg(EMAIL_VALIDATION_MESSAGE);
       return;
     }
     if (!password.trim() || password.length < 6) {

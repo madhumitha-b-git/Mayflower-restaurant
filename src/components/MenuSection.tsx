@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MENU_ITEMS } from '../data/restaurantData';
+import { useMenuItems } from '../data/menuStorage';
 import { MenuCategoryType } from '../types';
 import { Sparkles, Coffee, Leaf, Utensils, ChevronDown, ChevronUp, FileText, ExternalLink } from 'lucide-react';
 
@@ -10,13 +10,14 @@ interface MenuSectionProps {
 }
 
 export const MenuSection: React.FC<MenuSectionProps> = ({ onPlanVisit, onRequestCellar, canReserveTable = true }) => {
+  const { dishes } = useMenuItems();
   const [selectedCategory, setSelectedCategory] = useState<MenuCategoryType>('all');
   const [dietaryFilter, setDietaryFilter] = useState<'all' | 'veg' | 'non-veg' | 'chef'>('all');
   const [showAllDishes, setShowAllDishes] = useState<boolean>(false);
 
   const PDF_MENU_URL = 'https://swirllifestyle.com/wp-content/uploads/2024/03/mayflower-menu.pdf';
 
-  const filteredDishes = MENU_ITEMS.filter((dish) => {
+  const filteredDishes = dishes.filter((dish) => {
     const matchesCategory = selectedCategory === 'all' || dish.category === selectedCategory;
     const matchesDietary =
       dietaryFilter === 'all' ||
@@ -110,7 +111,7 @@ export const MenuSection: React.FC<MenuSectionProps> = ({ onPlanVisit, onRequest
                 : 'bg-[#FAF7F2] text-[#4A4A4A] hover:bg-white border border-[#E8E4DB]'
             }`}
           >
-            All Items ({MENU_ITEMS.length})
+            All Items ({dishes.length})
           </button>
           <button
             onClick={() => handleDietaryChange('veg')}

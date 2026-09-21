@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserProfile } from '../types';
 import { Building2, Upload, FileText, X, CheckCircle2 } from 'lucide-react';
 import { getDataProvider } from '../data/DataProvider';
+import { isValidEmailDomain, EMAIL_VALIDATION_MESSAGE } from '../lib/validation';
 
 interface FranchiseEnquiryFormProps {
   user: UserProfile | null;
@@ -24,6 +25,7 @@ export function FranchiseEnquiryForm({ user, onClose, onSuccess }: FranchiseEnqu
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -33,6 +35,13 @@ export function FranchiseEnquiryForm({ user, onClose, onSuccess }: FranchiseEnqu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError(null);
+
+    if (!isValidEmailDomain(formData.email)) {
+      setValidationError(EMAIL_VALIDATION_MESSAGE);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -102,6 +111,11 @@ export function FranchiseEnquiryForm({ user, onClose, onSuccess }: FranchiseEnqu
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="p-6 md:p-8 pt-5 overflow-y-auto space-y-5 flex-1">
+            {validationError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+                {validationError}
+              </div>
+            )}
             
             {/* Row 1: Full Name & Email */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

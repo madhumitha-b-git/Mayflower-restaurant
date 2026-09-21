@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActiveModalType } from '../types';
-import { Building2, MessageSquareHeart, HelpCircle, Mail, Phone, MapPin, ArrowUpRight, Instagram } from 'lucide-react';
+import { Building2, MessageSquareHeart, HelpCircle, ArrowUpRight } from 'lucide-react';
 
 interface ContactSectionProps {
   onOpenModal: (type: ActiveModalType) => void;
@@ -204,62 +204,6 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenModal, onO
             </div>
           </div>
 
-        </div>
-
-        {/* Central Direct Contact Helpline */}
-        <div className="bg-[#F5F1EB] rounded-[28px] p-8 border border-[#E8E4DB] flex flex-col sm:flex-row items-center justify-around gap-6 text-center sm:text-left">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-[#FAF7F2] text-[#5A5A40] border border-[#E8E4DB] flex items-center justify-center shrink-0">
-              <Phone className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase tracking-widest text-[#5A5A40] font-bold block">Central Helpline</span>
-              <a href="tel:8098189000" className="text-sm font-semibold text-[#1A1A1A] hover:text-[#5A5A40]">
-                80981 89000
-              </a>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-[#FAF7F2] text-[#5A5A40] border border-[#E8E4DB] flex items-center justify-center shrink-0">
-              <Mail className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase tracking-widest text-[#5A5A40] font-bold block">Electronic Mail</span>
-              <a href="mailto:cafethemayflower@gmail.com" className="text-sm font-semibold text-[#1A1A1A] hover:text-[#5A5A40]">
-                cafethemayflower@gmail.com
-              </a>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-[#FAF7F2] text-[#5A5A40] border border-[#E8E4DB] flex items-center justify-center shrink-0">
-              <MapPin className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase tracking-widest text-[#5A5A40] font-bold block">Flagship Sanctuary</span>
-              <span className="text-sm font-semibold text-[#1A1A1A]">
-                Poes Garden, Chennai
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-full bg-[#FAF7F2] text-[#5A5A40] border border-[#E8E4DB] flex items-center justify-center shrink-0">
-              <Instagram className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase tracking-widest text-[#5A5A40] font-bold block">Connect</span>
-              <a
-                href="https://www.instagram.com/themayflowerchennai/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-semibold text-[#1A1A1A] hover:text-[#5A5A40] transition-colors"
-              >
-                @themayflowerchennai
-              </a>
-            </div>
-          </div>
         </div>
 
       </div>

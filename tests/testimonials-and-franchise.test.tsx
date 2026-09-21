@@ -160,15 +160,13 @@ describe('Instagram Connect Link & Logo', () => {
     expect(instagramLink).toHaveAttribute('target', '_blank');
   });
 
-  it('renders Instagram link in ContactSection Connect area', () => {
+  it('ensures redundant helpline bar is removed from ContactSection', () => {
     const handleOpenModal = vi.fn();
 
     render(<ContactSection onOpenModal={handleOpenModal} />);
 
-    const instagramLink = screen.getByRole('link', { name: /@themayflowerchennai/i });
-    expect(instagramLink).toBeInTheDocument();
-    expect(instagramLink).toHaveAttribute('href', 'https://www.instagram.com/themayflowerchennai/');
-    expect(instagramLink).toHaveAttribute('target', '_blank');
+    expect(screen.queryByText(/Central Helpline/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Electronic Mail/i)).not.toBeInTheDocument();
   });
 });
 

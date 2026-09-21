@@ -20,10 +20,9 @@ export const ExperienceShowcase: React.FC<ExperienceShowcaseProps> = ({ onExplor
       <div className="relative rounded-xl overflow-hidden border border-[#E8E2D5] shadow-lg group bg-[#081C15]">
         <div className="relative h-64 md:h-80 w-full overflow-hidden">
           <img
-            alt="MayFlower Heritage Dining & Salons"
-            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 opacity-90 group-hover:opacity-100"
-            src="https://lh3.googleusercontent.com/aida/AEtjO1Wo3D-NxlZuevsKxWUQc0PzydoS3peIKmiYY6QtnfINRqzJH02yMjS0jyQlLRrPcoks-ukpVd6K5xWLyyhHQfFjxQqZOa5nNWJDBuHYrJTu72nmEU_bCgxQC3pO96YcOrOBKTFu19K5R4fqScnrXH4aKPDEVBcylGJeaLUSEUSH_sHUoCntMrsXi7J-tSUZiq1jax_EwSzs4k4oDLdcrB_MwsYmDDYbVFyhMy_SpJiZyTGzd7-K2F880LY"
-            referrerPolicy="no-referrer"
+            src="https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80"
+            alt="The Mayflower Experience"
+            className="w-full h-full object-cover object-center transform group-hover:scale-105 transition-transform duration-700 opacity-90 group-hover:opacity-100"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#081C15] via-[#081C15]/40 to-transparent" />
 

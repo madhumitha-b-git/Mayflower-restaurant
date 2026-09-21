@@ -6,6 +6,7 @@ export interface AuthResult {
   success: boolean;
   user?: UserProfile;
   message?: string;
+  requiresEmailConfirmation?: boolean;
 }
 
 const STAFF_EMAIL_ROLE_MAP: Record<string, UserRole> = {

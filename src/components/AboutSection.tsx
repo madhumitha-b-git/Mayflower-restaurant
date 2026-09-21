@@ -80,7 +80,7 @@ const BRAND_PILLARS: PillarData[] = [
     tagline: 'Botanical Sanctuary',
     title: 'A Quaint, Cozy Atmosphere Created for Special Moments',
     description: 'Step inside a serene bohemian haven featuring glasshouse conservatories, potted palms, woven cane lamps, and soft ambient warmth. Designed for romantic date nights, lively family meals, and peaceful catch-ups.',
-    image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAo8A20eSCjsaWzVWhOcseGiH7uy_WzieVkzEIYn-jZW2cWP4ImDbbXu3BdFWQPDDPhtLGXg8OcCF68kErOJx6FwanmheIFdxIbtV5qzetdgr6I1l5RK59uOHKB3InPYC88F4t-JMi_Nckma4DRiMV9T3wCtyyPtJb2O2d9jR5enzbpDA3DfNBPfkocCJZ-33mSTOlsJQRoN2xB5ljQXZ9gbOhkfhz6TJLnWogFOImB0-aJsKFSimA',
+    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80',
     highlights: [
       'Lush botanical decor with indoor glasshouse dining',
       'Warm amber lighting & cozy cane seating nooks',

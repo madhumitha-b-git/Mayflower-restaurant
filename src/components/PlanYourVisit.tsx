@@ -12,6 +12,7 @@ import { addReservationForCurrentUser } from '../lib/authService';
 import { getStoredTables, reserveTableForCustomer } from '../data/tableStorage';
 import { sendReservationConfirmationEmail } from '../data/emailService';
 import { MayflowerLogo } from './MayflowerLogo';
+import { isValidEmailDomain, EMAIL_VALIDATION_MESSAGE } from '../lib/validation';
 
 interface PlanYourVisitProps {
   initialOutlet?: string;
@@ -197,6 +198,10 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
     }
     if (!reservation.guestName || !reservation.guestPhone) {
       alert('Please provide your name and phone number for the reservation confirmation.');
+      return;
+    }
+    if (reservation.guestEmail && !isValidEmailDomain(reservation.guestEmail)) {
+      alert(EMAIL_VALIDATION_MESSAGE);
       return;
     }
     const code = `MF-${Math.floor(2000 + Math.random() * 7000)}`;
