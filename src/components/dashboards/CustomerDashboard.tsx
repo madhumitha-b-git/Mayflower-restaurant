@@ -5,7 +5,7 @@ import { getDataProvider } from '../../data/DataProvider';
 import { PlanYourVisit } from '../PlanYourVisit';
 
 import { PatronProfile, Reservation, Review, SalonVenue, ReviewMemory } from './customer/types';
-import { SALON_VENUES, INITIAL_REVIEWS } from './customer/initialData';
+import { SALON_VENUES } from './customer/initialData';
 import { PatronCard } from './customer/PatronCard';
 import { QuickActions } from './customer/QuickActions';
 import { UpcomingReservations } from './customer/UpcomingReservations';
@@ -18,7 +18,9 @@ import { PatronProfileModal } from './customer/PatronProfileModal';
 import { CancelModal } from './customer/CancelModal';
 import { ModifyReservationModal } from './customer/ModifyReservationModal';
 import { Toast, ToastMessage } from './customer/Toast';
-import { Building2, PlusCircle, FileText } from 'lucide-react';
+import {
+  Building2, PlusCircle, FileText
+} from 'lucide-react';
 import { FranchiseEnquiryForm } from '../FranchiseEnquiryForm';
 
 interface Props {
@@ -41,15 +43,33 @@ const getVenueImage = (outletName: string): string => {
   if (lower.includes('ecr') || lower.includes('palavakkam') || lower.includes('seaside')) {
     return 'https://lh3.googleusercontent.com/aida/AEtjO1XW-PaWkerRX2rvFgm1YiLEKzo5LKFtMeTwMs7UiL6mhBQmcC9lbh-mMmopPY6Axaih3QQJvZJLq-mdcjNJV0lkD6d0GM4CmajtbU08da42C-tGwMh2UFcISgk52hMt3mo_zpQFrrCoeVW39FSWDg2p0XyuSM7qlEXhXtrzfjy6H1eD4eEG7ew3t-eFhUYJh0ggjPCLpbdKF2q3uHm2oH1j2khFg7JFK4uzGYuZVS8tekVuTXpiceih4Bg';
   }
+  if (lower.includes('anna')) {
+    return 'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?q=80&w=1000&auto=format&fit=crop';
+  }
+  // Egmore & default
   return 'https://lh3.googleusercontent.com/aida/AEtjO1XKIlQBg8XDWITGCIcXI6RJC_RINGskS7HFz_6rq_LI4WMvZ3BqiEPW08_fkxqfIjyp5jsZ6zRJAQ-AEMHP_1XqncR6UGUOOwxqaichKeou8aGL_gWOj-ReFqc8Rru0UxozJi4PyVEXIbP9wypwYPJ_sIAfE5Bs9UTP0zRNll_fy8GZLCTUIbLaTxNp6pdyHqgO19bnaH6jWRVPydTBya32inEkSmbflUk207E_x8B_X8fPT_ukjEe1hXY';
 };
 
 const getSalonTag = (outletName: string): string => {
   const lower = (outletName || '').toLowerCase();
-  if (lower.includes('poes')) return 'POES GARDEN SALON';
-  if (lower.includes('ecr') || lower.includes('palavakkam')) return 'PALAVAKKAM ECR SEASIDE';
-  if (lower.includes('flagship')) return 'FLAGSHIP GRAND SALON';
-  return `${outletName.toUpperCase()} SALON`;
+  if (lower.includes('poes')) return 'POES GARDEN';
+  if (lower.includes('ecr') || lower.includes('palavakkam')) return 'PALAVAKKAM (ECR)';
+  if (lower.includes('egmore')) return 'EGMORE';
+  if (lower.includes('anna')) return 'ANNA NAGAR';
+  return outletName.toUpperCase();
+};
+
+const cleanReviews = (items: any[]): Review[] => {
+  return (items || []).filter((r) => r && r.id !== 'rev-1' && r.text !== 'NIceeeeeeeeee');
+};
+
+const getOutletIdByName = (name: string): string => {
+  const lower = (name || '').toLowerCase();
+  if (lower.includes('poes')) return 'a1000000-0000-0000-0000-000000000001';
+  if (lower.includes('anna')) return 'a1000000-0000-0000-0000-000000000002';
+  if (lower.includes('egmore')) return 'a1000000-0000-0000-0000-000000000003';
+  if (lower.includes('palavakkam') || lower.includes('ecr')) return 'a1000000-0000-0000-0000-000000000004';
+  return 'a1000000-0000-0000-0000-000000000001';
 };
 
 const getTierProgress = (points: number) => {
@@ -78,6 +98,8 @@ export const CustomerDashboard: React.FC<Props> = ({
   const initialTierInfo = getTierProgress(user.rewardPoints || 600);
   const [patron, setPatron] = useState<PatronProfile>({
     name: user.name || 'Patron',
+    email: user.email || '',
+    phone: user.phone || '',
     monogram: (user.name?.[0] || 'M').toUpperCase(),
     tier: (user.tier as any) || initialTierInfo.tier,
     stars: user.rewardPoints ?? 600,
@@ -97,9 +119,9 @@ export const CustomerDashboard: React.FC<Props> = ({
   const [reviews, setReviews] = useState<Review[]>(() => {
     try {
       const saved = localStorage.getItem(`mayflower_reviews_${user.id}`);
-      return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
+      return saved ? cleanReviews(JSON.parse(saved)) : [];
     } catch {
-      return INITIAL_REVIEWS;
+      return [];
     }
   });
 
@@ -135,6 +157,27 @@ export const CustomerDashboard: React.FC<Props> = ({
         provider.getMyFranchiseEnquiries ? provider.getMyFranchiseEnquiries(user).catch(() => []) : Promise.resolve([]),
       ]);
       setFranchiseEnquiries(myFranchises || []);
+
+      // Fetch user profile row from Supabase
+      try {
+        const { data: prof } = await supabase
+          .from('user_profiles')
+          .select('name,email,phone,dietary_preferences,preferred_seating,reward_points,tier,total_visits')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (prof) {
+          setPatron((prev) => ({
+            ...prev,
+            name: prof.name || prev.name,
+            email: prof.email || user.email || prev.email,
+            phone: prof.phone || user.phone || prev.phone,
+            monogram: (prof.name?.[0] || prev.name[0] || 'M').toUpperCase(),
+            dietaryPreferences: prof.dietary_preferences || prev.dietaryPreferences,
+            preferredSeating: prof.preferred_seating || prev.preferredSeating,
+          }));
+        }
+      } catch {}
 
       // Fetch customer row for preferences
       try {
@@ -234,9 +277,9 @@ export const CustomerDashboard: React.FC<Props> = ({
       setReservations(mappedReservations);
 
       // Map feedback
-      const dbReviews: Review[] = providerFb.map((f: any) => ({
+      const dbReviews: Review[] = (providerFb || []).map((f: any) => ({
         id: f.id,
-        salon: f.outlet || 'Poes Garden Salon',
+        salon: f.outlet || 'Poes Garden',
         rating: f.rating || 5,
         text: f.comment || f.message || 'Exceptional experience.',
         visitDate: f.visitDate || 'Recent Visit',
@@ -245,7 +288,14 @@ export const CustomerDashboard: React.FC<Props> = ({
       }));
 
       if (dbReviews.length > 0) {
-        setReviews(dbReviews);
+        setReviews(cleanReviews(dbReviews));
+      } else {
+        try {
+          const saved = localStorage.getItem(`mayflower_reviews_${user.id}`);
+          setReviews(saved ? cleanReviews(JSON.parse(saved)) : []);
+        } catch {
+          setReviews([]);
+        }
       }
     } catch {
       // Fallback gracefully
@@ -435,13 +485,11 @@ export const CustomerDashboard: React.FC<Props> = ({
     // Update Supabase feedback & profile
     try {
       await supabase.from('feedback').insert({
-        user_id: user.id,
         customer_id: user.id,
-        outlet: feedback.salon,
+        outlet_id: getOutletIdByName(feedback.salon),
         rating: feedback.rating,
         comment: feedback.notes,
-        message: feedback.notes,
-        visit_date: visitDateStr,
+        status: 'new',
       });
 
       const { data: profileData } = await supabase
@@ -487,6 +535,18 @@ export const CustomerDashboard: React.FC<Props> = ({
       'Patron Relations Confirmed',
       `Thank you for your feedback, ${patron.name}. +${bonusAwarded} Mayflower Stars awarded.`
     );
+  };
+
+  // Handle full profile update success
+  const handleProfileUpdateSuccess = (updatedUser: UserProfile, updatedPatron: Partial<PatronProfile>) => {
+    setPatron((prev) => ({
+      ...prev,
+      ...updatedPatron,
+      monogram: (updatedPatron.name?.[0] || prev.name[0] || 'M').toUpperCase(),
+    }));
+    if (onUpdateUser) {
+      onUpdateUser(updatedUser);
+    }
   };
 
   // Handle updating patron preferences
@@ -550,6 +610,7 @@ export const CustomerDashboard: React.FC<Props> = ({
           onCancel={(res) => setCancelingReservation(res)}
           onNewReservation={() => handleOpenReserve()}
         />
+
 
         {/* Atmosphere Showcase */}
         <ExperienceShowcase onExploreVenues={() => setIsVenuesOpen(true)} />
@@ -689,6 +750,8 @@ export const CustomerDashboard: React.FC<Props> = ({
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         patron={patron}
+        user={user}
+        onUpdateSuccess={handleProfileUpdateSuccess}
         onUpdatePatron={handleUpdatePatron}
       />
 

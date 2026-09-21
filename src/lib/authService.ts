@@ -154,7 +154,8 @@ export const supabaseLogin = async (email: string, password: string): Promise<Au
 export const supabaseRegister = async (
   email: string,
   password: string,
-  name: string
+  name: string,
+  phone?: string
 ): Promise<AuthResult> => {
   if (!isSupabaseConfigured) {
     return { success: false, message: 'Supabase is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.' };
@@ -190,7 +191,7 @@ export const supabaseRegister = async (
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,
     password,
-    options: { data: { name: name || normalizedEmail.split('@')[0] } },
+    options: { data: { name: name || normalizedEmail.split('@')[0], phone: phone || '' } },
   });
 
   if (error || !data.user) {
@@ -240,7 +241,7 @@ export const supabaseRegister = async (
     id: data.user.id,
     name: name || email.split('@')[0],
     email: normalizedEmail,
-    phone: '',
+    phone: phone || '',
     role: 'Customer' as UserRole,
     reward_points: 200,
     tier: 'Green' as LoyaltyTier,
@@ -528,3 +529,104 @@ export const getSupabaseCurrentUser = async (): Promise<UserProfile | null> => {
 export const supabaseLogout = async (): Promise<void> => {
   await supabase.auth.signOut();
 };
+
+export interface UpdateProfileParams {
+  userId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  password?: string;
+  dietaryPreferences?: string[];
+  preferredSeating?: string;
+}
+
+/** Update customer profile details, phone, email, password, and preferences */
+export const updateUserProfile = async (
+  params: UpdateProfileParams
+): Promise<{ success: boolean; user?: UserProfile; message?: string }> => {
+  const { userId, name, email, phone, password, dietaryPreferences, preferredSeating } = params;
+  const normalizedEmail = email.trim().toLowerCase();
+  const trimmedName = name.trim();
+  const trimmedPhone = (phone || '').trim();
+
+  try {
+    // 1. If password is provided, update password via Supabase Auth
+    if (password && password.trim().length >= 6) {
+      const { error: pwdError } = await supabase.auth.updateUser({
+        password: password.trim(),
+      });
+      if (pwdError) {
+        console.warn('Supabase auth password update note:', pwdError.message);
+      }
+    }
+
+    // 2. Update Supabase Auth user metadata & email
+    try {
+      await supabase.auth.updateUser({
+        email: normalizedEmail,
+        data: { name: trimmedName, phone: trimmedPhone },
+      });
+    } catch (authErr) {
+      console.warn('Supabase auth updateUser error:', authErr);
+    }
+
+    // 3. Update public.user_profiles in Supabase
+    const updatePayload: Record<string, any> = {
+      name: trimmedName,
+      email: normalizedEmail,
+      phone: trimmedPhone,
+      updated_at: new Date().toISOString(),
+    };
+    if (dietaryPreferences !== undefined) {
+      updatePayload.dietary_preferences = dietaryPreferences;
+    }
+    if (preferredSeating !== undefined) {
+      updatePayload.preferred_seating = preferredSeating;
+    }
+
+    const { error: profError } = await supabase
+      .from('user_profiles')
+      .update(updatePayload)
+      .eq('id', userId);
+
+    if (profError) {
+      console.warn('user_profiles update note:', profError.message);
+    }
+
+    // 4. Update public.users table if user exists there
+    try {
+      await supabase
+        .from('users')
+        .update({
+          name: trimmedName,
+          email: normalizedEmail,
+          phone: trimmedPhone,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+    } catch {}
+
+    // 5. Fetch updated user profile
+    const fetchedUser = await fetchUserProfile(userId);
+    const updatedUser: UserProfile = {
+      ...(fetchedUser || {
+        id: userId,
+        role: 'Customer',
+        rewardPoints: 200,
+        tier: 'Green',
+        totalVisits: 0,
+        joinedDate: 'Recent',
+        transactions: [],
+        reservations: [],
+      }),
+      name: trimmedName,
+      email: normalizedEmail,
+      phone: trimmedPhone,
+    };
+
+    return { success: true, user: updatedUser };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Failed to update profile' };
+  }
+};
+

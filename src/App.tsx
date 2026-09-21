@@ -6,6 +6,7 @@ import { MayflowerGallery } from './components/MayflowerGallery';
 import { MenuSection } from './components/MenuSection';
 import { MayflowerMomentCards } from './components/MayflowerMomentCards';
 import { OutletsSection } from './components/OutletsSection';
+import { TestimonialsSection } from './components/TestimonialsSection';
 import { ContactSection } from './components/ContactSection';
 import { Footer } from './components/Footer';
 import { PlanYourVisit } from './components/PlanYourVisit';
@@ -152,6 +153,14 @@ export default function App() {
     }
   };
 
+  const handleOpenModal = (modalType: ActiveModalType) => {
+    if (modalType === 'franchise') {
+      handleOpenFranchise();
+    } else {
+      setActiveModal(modalType);
+    }
+  };
+
   const handleUpdateUser = (updatedUser: UserProfile) => {
     setCurrentUser(updatedUser);
   };
@@ -209,8 +218,10 @@ export default function App() {
               canReserveTable={canReserveTable}
               onReserveOutlet={(outletName) => handleOpenReservations(outletName)}
             />
+            <TestimonialsSection />
             <ContactSection
-              onOpenModal={(modalType) => setActiveModal(modalType)}
+              onOpenModal={handleOpenModal}
+              onOpenFranchise={handleOpenFranchise}
             />
           </>
         ) : (
@@ -232,6 +243,7 @@ export default function App() {
 
       <Modals
         activeModal={activeModal}
+        currentUser={currentUser}
         onClose={() => setActiveModal('none')}
       />
 

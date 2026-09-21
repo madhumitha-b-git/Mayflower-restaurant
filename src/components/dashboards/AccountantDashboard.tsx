@@ -48,7 +48,7 @@ export const AccountantDashboard: React.FC<Props> = ({ user, onLogout, onSwitchR
     { id: 'ZR-01', outlet: 'Poes Garden Flagship', terminal: 'Terminal 01', zRepCode: '#PET-88219', grossSale: 194800, edcSwipes: 98400, upiAmount: 74200, systemCash: 22200, physicalCount: 22200, variance: 0.00, status: 'Reconciled' },
     { id: 'ZR-02', outlet: 'Palavakkam ECR Seaside', terminal: 'Terminal 02', zRepCode: '#PET-88220', grossSale: 142650, edcSwipes: 68250, upiAmount: 56100, systemCash: 18300, physicalCount: 18250, variance: -50.00, status: 'Variance Cleared' },
     { id: 'ZR-03', outlet: 'Anna Nagar East Pavilion', terminal: 'Terminal 03', zRepCode: '#PET-88221', grossSale: 86410, edcSwipes: 41200, upiAmount: 36810, systemCash: 8400, physicalCount: 8400, variance: 0.00, status: 'Reconciled' },
-    { id: 'ZR-04', outlet: 'Velachery Lakeside Conservatory', terminal: 'Terminal 04', zRepCode: '#PET-88222', grossSale: 62360, edcSwipes: 25535, upiAmount: 17653, systemCash: 19172, physicalCount: 19172, variance: 0.00, status: 'Reconciled' },
+    { id: 'ZR-04', outlet: 'Egmore Heritage Manor', terminal: 'Terminal 04', zRepCode: '#PET-88222', grossSale: 62360, edcSwipes: 25535, upiAmount: 17653, systemCash: 19172, physicalCount: 19172, variance: 0.00, status: 'Reconciled' },
   ]);
 
   // Accounts Payable Consignment Invoices State
@@ -110,7 +110,7 @@ export const AccountantDashboard: React.FC<Props> = ({ user, onLogout, onSwitchR
   };
 
   const handleFetchPetpoojaZFiles = () => {
-    showToast('Syncing Petpooja POS API', 'Fetching latest Z-reports across Poes Garden, ECR, Anna Nagar & Velachery...', 'sync');
+    showToast('Syncing Petpooja POS API', 'Fetching latest Z-reports across Poes Garden, ECR, Anna Nagar & Egmore...', 'sync');
   };
 
   const handleAuthorizeNEFT = () => {
@@ -154,8 +154,12 @@ export const AccountantDashboard: React.FC<Props> = ({ user, onLogout, onSwitchR
           {/* Brand Logo & Monogram */}
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-2xl bg-[#02150c] text-[#e4c27d] flex items-center justify-center font-serif font-bold text-xl shadow">
-                M
+              <div className="w-10 h-10 rounded-2xl bg-[#FAF7F2] border border-[#2D4030]/20 flex items-center justify-center shadow p-1 overflow-hidden shrink-0">
+                <img
+                  src="/mayflower-emblem-icon.png"
+                  alt="The Mayflower"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div className="flex flex-col">
                 <span className="font-serif text-lg font-bold text-[#02150c] leading-tight">Mayflower</span>
@@ -172,9 +176,9 @@ export const AccountantDashboard: React.FC<Props> = ({ user, onLogout, onSwitchR
                 className="bg-transparent font-bold text-[#02150c] focus:outline-none cursor-pointer"
               >
                 <option value="poes">Poes Garden Flagship</option>
-                <option value="ecr">Palavakkam ECR</option>
-                <option value="anna">Anna Nagar East</option>
-                <option value="velachery">Velachery Lakeside</option>
+                <option value="ecr">Palavakkam (ECR)</option>
+                <option value="egmore">Egmore Heritage Manor</option>
+                <option value="anna">Anna Nagar</option>
               </select>
             </div>
           </div>

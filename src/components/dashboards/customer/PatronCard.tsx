@@ -1,5 +1,6 @@
 import React from 'react';
 import { PatronProfile } from './types';
+import { Edit3 } from 'lucide-react';
 
 interface PatronCardProps {
   patron: PatronProfile;
@@ -46,9 +47,19 @@ export const PatronCard: React.FC<PatronCardProps> = ({ patron, onOpenRewards, o
                 {patron.tier.toUpperCase()} MEMBER
               </span>
             </div>
-            <p className="text-xs text-stone-300/80 font-light tracking-wide">
-              Mayflower Patron since {patron.memberSince} · {patron.totalVisits} Visit{patron.totalVisits !== 1 ? 's' : ''}
-            </p>
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 text-xs text-stone-300/80 font-light tracking-wide">
+              <span>Mayflower Patron since {patron.memberSince} · {patron.totalVisits} Visit{patron.totalVisits !== 1 ? 's' : ''}</span>
+              {onOpenProfile && (
+                <button
+                  onClick={onOpenProfile}
+                  type="button"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#DFC993] hover:text-white bg-[#C5A880]/15 hover:bg-[#C5A880]/25 border border-[#C5A880]/30 rounded-lg px-2.5 py-0.5 transition cursor-pointer shadow-xs"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  Edit Profile
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

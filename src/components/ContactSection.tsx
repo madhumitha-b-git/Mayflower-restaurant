@@ -1,9 +1,10 @@
 import React from 'react';
 import { ActiveModalType } from '../types';
-import { Building2, MessageSquareHeart, HelpCircle, Mail, Phone, MapPin, ArrowUpRight } from 'lucide-react';
+import { Building2, MessageSquareHeart, HelpCircle, Mail, Phone, MapPin, ArrowUpRight, Instagram } from 'lucide-react';
 
 interface ContactSectionProps {
   onOpenModal: (type: ActiveModalType) => void;
+  onOpenFranchise?: () => void;
 }
 
 const OUTLET_CONTACTS = [
@@ -53,7 +54,7 @@ const OUTLET_CONTACTS = [
   }
 ];
 
-export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenModal }) => {
+export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenModal, onOpenFranchise }) => {
   return (
     <section id="contact" className="py-20 bg-[#FAF7F2] text-[#1A1A1A] relative border-b border-[#E8E4DB]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12">
@@ -135,7 +136,13 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenModal }) =
 
             <div className="pt-6 mt-6 border-t border-[#E8E4DB]">
               <button
-                onClick={() => onOpenModal('franchise')}
+                onClick={() => {
+                  if (onOpenFranchise) {
+                    onOpenFranchise();
+                  } else {
+                    onOpenModal('franchise');
+                  }
+                }}
                 id="btn-open-franchise-modal"
                 className="w-full py-3.5 rounded-full bg-[#1A1A1A] hover:bg-[#333333] text-white text-[11px] uppercase tracking-widest font-bold flex items-center justify-center space-x-2 transition-colors cursor-pointer"
               >
@@ -234,6 +241,23 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ onOpenModal }) =
               <span className="text-sm font-semibold text-[#1A1A1A]">
                 Poes Garden, Chennai
               </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-full bg-[#FAF7F2] text-[#5A5A40] border border-[#E8E4DB] flex items-center justify-center shrink-0">
+              <Instagram className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase tracking-widest text-[#5A5A40] font-bold block">Connect</span>
+              <a
+                href="https://www.instagram.com/themayflowerchennai/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-semibold text-[#1A1A1A] hover:text-[#5A5A40] transition-colors"
+              >
+                @themayflowerchennai
+              </a>
             </div>
           </div>
         </div>

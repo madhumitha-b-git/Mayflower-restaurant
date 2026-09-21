@@ -1,4 +1,4 @@
-import { Calendar, ArrowUp, Facebook, Linkedin } from 'lucide-react';
+import { Calendar, ArrowUp, Facebook, Instagram, Linkedin } from 'lucide-react';
 import { OUTLETS } from '../data/restaurantData';
 
 interface FooterProps {
@@ -45,25 +45,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit, canRese
           {/* Col 1: Brand */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center space-x-3.5">
-              <div className="w-11 h-11 rounded-[16px] bg-[#FAF7F2] border border-white/20 shadow-md flex items-center justify-center shrink-0 overflow-hidden">
-                <svg viewBox="0 0 100 100" className="w-4/5 h-4/5" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M50 16 C54 26 64 30 70 26 C64 37 54 39 50 33 C46 39 36 37 30 26 C36 30 46 26 50 16 Z"
-                    fill="#2D4030"
-                    opacity="0.18"
-                  />
-                  <text
-                    x="50"
-                    y="68"
-                    textAnchor="middle"
-                    fontFamily="'Playfair Display', 'Cormorant Garamond', Georgia, serif"
-                    fontSize="56"
-                    fontWeight="700"
-                    fill="#2D4030"
-                  >
-                    M
-                  </text>
-                </svg>
+              <div className="w-11 h-11 rounded-[16px] bg-[#FAF7F2] border border-white/20 shadow-md flex items-center justify-center shrink-0 overflow-hidden p-1">
+                <img
+                  src="/mayflower-emblem-icon.png"
+                  alt="The Mayflower"
+                  className="w-full h-full object-contain select-none"
+                />
               </div>
               <div className="flex flex-col">
                 <span className="font-cinzel text-2xl tracking-[0.06em] font-bold uppercase text-[#FAF7F2]">
@@ -184,6 +171,15 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit, canRese
           <div className="flex items-center gap-4">
             <span className="text-[10px] uppercase tracking-widest opacity-50 font-bold">Connect:</span>
             <div className="flex items-center gap-3">
+              <a
+                href="https://www.instagram.com/themayflowerchennai/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram"
+                className="text-[#FAF7F2]/80 hover:text-white transition-colors duration-200 p-1 cursor-pointer inline-flex items-center justify-center"
+              >
+                <Instagram className="w-4 h-4" />
+              </a>
               <a
                 href="https://www.facebook.com/themayflowerchennai"
                 target="_blank"

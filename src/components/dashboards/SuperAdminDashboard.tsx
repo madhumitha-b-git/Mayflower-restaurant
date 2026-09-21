@@ -48,7 +48,7 @@ interface RbacRow {
 type ActiveTab = 'overview' | 'staff' | 'customers' | 'outlets' | 'rbac' | 'integrations' | 'audit';
 
 const STAFF_ROLES = ['Owner', 'Admin', 'Manager', 'Chef', 'HR', 'Accountant'] as const;
-const OUTLETS = ['Poes Garden Flagship', 'Palavakkam ECR Seaside', 'Anna Nagar East Pavilion', 'Velachery Lakeside Conservatory'];
+const OUTLETS = ['Poes Garden Flagship', 'Palavakkam ECR Seaside', 'Egmore Heritage Manor', 'Anna Nagar East Pavilion'];
 
 const TIER_COLORS: Record<string, string> = {
   'Green': 'bg-emerald-50 text-emerald-700',
@@ -250,7 +250,13 @@ export const SuperAdminDashboard: React.FC<Props> = ({ user: _user, onLogout }) 
       <header className="sticky top-10 z-50 bg-[#fbf9f5]/95 backdrop-blur-xl border-b border-[#e4e2de] shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#02150c] text-[#e4c27d] flex items-center justify-center font-serif font-bold text-xl shadow">M</div>
+            <div className="w-10 h-10 rounded-2xl bg-[#FAF7F2] border border-[#2D4030]/20 flex items-center justify-center shadow p-1 overflow-hidden shrink-0">
+              <img
+                src="/mayflower-emblem-icon.png"
+                alt="The Mayflower"
+                className="w-full h-full object-contain"
+              />
+            </div>
             <div className="flex flex-col">
               <span className="font-serif text-lg font-bold text-[#02150c] leading-tight">Mayflower</span>
               <span className="text-[10px] font-bold text-[#745b20] uppercase tracking-widest">Sanctuaries · Chennai</span>

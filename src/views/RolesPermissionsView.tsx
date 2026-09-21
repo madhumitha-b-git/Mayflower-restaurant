@@ -391,7 +391,7 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({ onNa
                 SANCTUARY CLUSTER COVERAGE
               </h4>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                {['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'].map(
+                {['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'].map(
                   (sanctuary) => (
                     <label
                       key={sanctuary}

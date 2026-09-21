@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  X, Mail, ArrowRight, CheckCircle2, User, LogIn, UserPlus,
-  Eye, EyeOff, Lock, Phone, RefreshCw
-} from 'lucide-react';
+import { X, Eye, EyeOff, CheckCircle2, RefreshCw } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabaseLogin, supabaseRegister } from '../lib/authService';
 import { supabase } from '../lib/supabaseClient';
@@ -25,20 +22,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const resetAll = () => {
-    setEmail(''); setName(''); setPhone(''); setPassword('');
-    setOtp(''); setErrorMsg(null); setStep('form');
+    setEmail('');
+    setName('');
+    setPhone('');
+    setPassword('');
+    setConfirmPassword('');
+    setOtp('');
+    setErrorMsg(null);
+    setStep('form');
   };
 
   useEffect(() => {
-    if (!isOpen) { resetAll(); }
-  }, [isOpen]);
+    if (!isOpen) {
+      resetAll();
+    } else {
+      setAuthMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -72,6 +81,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    if (!name.trim()) {
+      setErrorMsg('Please enter your full name.');
+      return;
+    }
     if (!email.trim() || !email.includes('@')) {
       setErrorMsg('Please enter a valid email address.');
       return;
@@ -80,11 +93,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setErrorMsg('Password must be at least 6 characters.');
       return;
     }
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match. Please verify.');
+      return;
+    }
+
     setLoading(true);
-    const res = await supabaseRegister(email.trim(), password, name.trim());
+    const res = await supabaseRegister(email.trim(), password, name.trim(), phone.trim());
     setLoading(false);
     if (res.success && res.user) {
-      // Check if email confirmation is pending (message contains hint)
       if (res.message && /confirm|otp|inbox/i.test(res.message)) {
         setStep('otp');
         setResendCooldown(60);
@@ -121,7 +138,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setErrorMsg(error?.message || 'Invalid or expired code.');
         return;
       }
-      // Re-login to get full profile
       const res = await supabaseLogin(email.trim(), password);
       if (res.success && res.user) {
         onLoginSuccess(res.user);
@@ -148,123 +164,152 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setErrorMsg(null);
   };
 
-  const inputBase = "w-full pl-10 pr-4 py-3 rounded-xl border border-[#E8E2D5] bg-white text-sm text-[#1A1A1A] placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-[#1E3932]/30 focus:border-[#1E3932] transition-colors";
-  const labelBase = "block text-[10px] font-bold uppercase tracking-widest text-stone-400 mb-1.5";
+  const inputBase = "w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-xs text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#0F251C]/20 focus:border-[#0F251C] transition-colors";
+  const labelBase = "block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-1.5";
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-[420px] bg-[#FAF7F2] rounded-3xl overflow-hidden shadow-2xl border border-[#E8E2D5]"
+        className="relative w-full max-w-4xl bg-[#FAF7F2] rounded-3xl overflow-hidden shadow-2xl border border-[#E8E2D5] flex flex-col md:flex-row my-auto"
         onClick={e => e.stopPropagation()}
       >
-        {/* Close */}
+        {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center cursor-pointer transition-colors"
+          className="absolute top-4 right-4 z-30 w-8 h-8 rounded-full bg-stone-100/80 hover:bg-stone-200 flex items-center justify-center cursor-pointer transition-colors"
+          aria-label="Close modal"
         >
-          <X className="w-4 h-4 text-stone-500" />
+          <X className="w-4 h-4 text-stone-600" />
         </button>
 
-        {/* Hero Banner */}
-        <div className="relative bg-[#1E3932] px-8 pt-8 pb-6 overflow-hidden">
-          <div className="absolute inset-0 opacity-10"
-            style={{ backgroundImage: 'radial-gradient(circle at 80% 20%, #C5A880 0%, transparent 60%)' }}
-          />
-          <div className="relative">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-[#C5A880]/20 border border-[#C5A880]/30 flex items-center justify-center">
-                <span className="text-[#C5A880] font-bold text-sm">M</span>
-              </div>
-              <span className="text-[10px] uppercase tracking-[0.25em] font-bold text-[#C5A880]/70">Mayflower Sanctuary</span>
+        {/* LEFT SIDE: Minimal Mayflower Screen */}
+        <div className="md:w-5/12 bg-[#0F251C] p-8 sm:p-12 text-white flex flex-col items-center justify-center text-center">
+          {/* Authentic Mayflower Logo Card */}
+          <div className="w-12 h-12 rounded-xl bg-[#FAF7F2] flex items-center justify-center shadow-md mb-5 p-2 border border-[#C5A880]/30">
+            <img
+              src="/mayflower-emblem-icon.png"
+              alt="The Mayflower"
+              className="w-full h-full object-contain select-none pointer-events-none"
+            />
+          </div>
+
+          {/* Subtitle / Brand */}
+          <span className="text-[11px] uppercase tracking-[0.25em] font-bold text-[#C5A880] mb-2 block">
+            THE MAYFLOWER
+          </span>
+
+          {/* Main Title */}
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#FAF7F2] leading-tight mb-5 max-w-[240px]">
+            Fine dining and private salons
+          </h2>
+
+          {/* Subtle gold line */}
+          <div className="w-12 h-[1px] bg-[#C5A880]/60 mb-5" />
+
+          {/* Italic caption */}
+          <p className="font-serif italic text-xs sm:text-sm text-stone-300/90 leading-relaxed max-w-[220px]">
+            Sign in to explore your sanctuary of privileges.
+          </p>
+        </div>
+
+        {/* RIGHT SIDE: Auth Form */}
+        <div className="md:w-7/12 p-6 sm:p-10 bg-[#FAF7F2] flex flex-col justify-center">
+          {/* Mode Switcher Tabs (Sign in / Register) */}
+          {step === 'form' && (
+            <div className="bg-[#EAE4D9] p-1 rounded-xl inline-flex self-start mb-6">
+              <button
+                type="button"
+                onClick={() => { setAuthMode('login'); setErrorMsg(null); }}
+                className={`text-xs font-semibold px-5 py-2 rounded-lg transition-all cursor-pointer ${
+                  authMode === 'login'
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                Sign in
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMode('register'); setErrorMsg(null); }}
+                className={`text-xs font-semibold px-5 py-2 rounded-lg transition-all cursor-pointer ${
+                  authMode === 'register'
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+              >
+                Register
+              </button>
             </div>
+          )}
+
+          {/* Form Title & Subtitle */}
+          <div className="mb-6">
             {step === 'otp' ? (
               <>
-                <h2 className="text-2xl font-semibold text-white leading-tight">Verify Your Email</h2>
-                <p className="text-sm text-stone-300 mt-1">
-                  We sent a 6-digit code to <span className="text-[#C5A880] font-medium">{email}</span>
+                <h3 className="text-2xl font-serif font-bold text-[#0F251C] leading-tight">Verify Your Email</h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  Please enter the 6-digit confirmation code dispatched to <span className="text-[#0F251C] font-semibold">{email}</span>
+                </p>
+              </>
+            ) : authMode === 'login' ? (
+              <>
+                <h3 className="text-2xl font-serif font-bold text-[#0F251C] leading-tight">Welcome back</h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  Sign in to access your sanctuary reservations and dashboard.
                 </p>
               </>
             ) : (
               <>
-                <h2 className="text-2xl font-semibold text-white leading-tight">
-                  {authMode === 'register' ? 'Create Account' : 'Welcome Back'}
-                </h2>
-                <p className="text-sm text-stone-300 mt-1">
-                  {authMode === 'register'
-                    ? 'Join Mayflower and start earning rewards.'
-                    : 'Sign in to access your reservations and dashboard.'}
+                <h3 className="text-2xl font-serif font-bold text-[#0F251C] leading-tight">Register sanctuary account</h3>
+                <p className="text-xs text-stone-500 mt-1">
+                  Join Mayflower to unlock patron benefits and earn loyalty stars.
                 </p>
               </>
             )}
           </div>
-        </div>
 
-        {/* Mode Tabs (only on form step) */}
-        {step === 'form' && (
-          <div className="flex bg-[#F0EBE3] p-1 mx-6 mt-5 rounded-xl">
-            {(['register', 'login'] as const).map(mode => (
-              <button
-                key={mode}
-                onClick={() => { setAuthMode(mode); setErrorMsg(null); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  authMode === mode
-                    ? 'bg-white text-[#1E3932] shadow-sm'
-                    : 'text-stone-400 hover:text-stone-600'
-                }`}
-              >
-                {mode === 'register' ? <UserPlus className="w-3.5 h-3.5" /> : <LogIn className="w-3.5 h-3.5" />}
-                {mode === 'register' ? 'Register' : 'Sign In'}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="px-6 py-5 space-y-4">
-          {/* Error */}
+          {/* Error Message */}
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1 shrink-0" />
+            <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
 
-          {/* OTP Step */}
+          {/* OTP Form */}
           {step === 'otp' && (
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
                 <label className={labelBase}>6-Digit Verification Code</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-stone-300 absolute left-3.5 top-3.5 pointer-events-none" />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    required
-                    placeholder="e.g. 482910"
-                    value={otp}
-                    onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className={inputBase + " tracking-[0.4em] text-center font-bold text-lg"}
-                    autoFocus
-                  />
-                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  placeholder="e.g. 482910"
+                  value={otp}
+                  onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
+                  className={inputBase + " tracking-[0.35em] text-center font-bold text-base"}
+                  autoFocus
+                />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-[#1E3932] hover:bg-[#152d26] text-white text-xs uppercase tracking-widest font-bold transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                className="w-full py-3.5 rounded-xl bg-[#0F251C] hover:bg-[#16382B] text-[#DFC993] hover:text-white text-xs uppercase tracking-widest font-bold transition-all cursor-pointer shadow-md disabled:opacity-60"
               >
-                {loading ? 'Verifying...' : <><CheckCircle2 className="w-4 h-4" /> Verify & Continue</>}
+                {loading ? 'Verifying...' : <><CheckCircle2 className="w-4 h-4 inline-block mr-1.5" /> Verify &amp; Continue</>}
               </button>
-              <div className="flex items-center justify-between text-xs text-stone-400">
+              <div className="flex items-center justify-between text-xs text-stone-500 pt-2">
                 <span>Didn't receive the code?</span>
                 <button
                   type="button"
                   onClick={handleResendOtp}
                   disabled={resendCooldown > 0 || loading}
-                  className="flex items-center gap-1 text-[#1E3932] font-semibold disabled:text-stone-300 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-1 text-[#0F251C] font-semibold disabled:text-stone-400 cursor-pointer disabled:cursor-not-allowed transition-colors"
                 >
                   <RefreshCw className="w-3 h-3" />
                   {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
@@ -273,7 +318,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="button"
                 onClick={() => { setStep('form'); setOtp(''); setErrorMsg(null); }}
-                className="w-full text-xs text-stone-400 hover:text-stone-600 transition-colors cursor-pointer"
+                className="w-full text-center text-xs text-stone-500 hover:text-stone-800 transition-colors cursor-pointer mt-2"
               >
                 ← Back to {authMode === 'register' ? 'registration' : 'sign in'}
               </button>
@@ -284,99 +329,146 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {step === 'form' && authMode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className={labelBase}>Email Address</label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-stone-300 absolute left-3.5 top-3.5 pointer-events-none" />
-                  <input type="email" required placeholder="you@example.com" value={email}
-                    onChange={e => setEmail(e.target.value)} className={inputBase} autoFocus />
-                </div>
+                <label className={labelBase}>EMAIL ADDRESS</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="name@email.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className={inputBase}
+                  autoFocus
+                />
               </div>
+
               <div>
-                <label className={labelBase}>Password</label>
+                <label className={labelBase}>PASSWORD</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 text-stone-300 absolute left-3.5 top-3.5 pointer-events-none" />
                   <input
-                    type={showPassword ? 'text' : 'password'} required
-                    placeholder="Enter your password" value={password}
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="••••••••••••"
+                    value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className={inputBase + " pr-10"}
+                    className={inputBase + " pr-9"}
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-3.5 text-stone-300 hover:text-stone-500 cursor-pointer">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600 cursor-pointer"
+                  >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-              <button type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl bg-[#1E3932] hover:bg-[#152d26] text-white text-xs uppercase tracking-widest font-bold transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60">
-                {loading ? 'Signing In...' : <><LogIn className="w-4 h-4" /> Sign In<ArrowRight className="w-4 h-4" /></>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-[#0F251C] hover:bg-[#16382B] text-[#DFC993] hover:text-white text-xs uppercase tracking-widest font-bold transition-all cursor-pointer shadow-md disabled:opacity-60 mt-2"
+              >
+                {loading ? 'Signing In...' : 'SIGN IN'}
               </button>
             </form>
           )}
 
           {/* Register Form */}
           {step === 'form' && authMode === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className={labelBase}>Email Address *</label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-stone-300 absolute left-3.5 top-3.5 pointer-events-none" />
-                    <input type="email" required placeholder="you@example.com" value={email}
-                      onChange={e => setEmail(e.target.value)} className={inputBase} autoFocus />
-                  </div>
-                </div>
+            <form onSubmit={handleRegister} className="space-y-3.5">
+              <div>
+                <label className={labelBase}>FULL NAME</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Eleanor Vance"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className={inputBase}
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className={labelBase}>Full Name</label>
-                  <div className="relative">
-                    <User className="w-4 h-4 text-stone-300 absolute left-3.5 top-3.5 pointer-events-none" />
-                    <input type="text" placeholder="Your name" value={name}
-                      onChange={e => setName(e.target.value)} className={inputBase} />
-                  </div>
+                  <label className={labelBase}>EMAIL ADDRESS</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@email.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className={inputBase}
+                  />
                 </div>
+
                 <div>
-                  <label className={labelBase}>Phone (optional)</label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-stone-300 absolute left-3.5 top-3.5 pointer-events-none" />
-                    <input type="tel" placeholder="+91 98400..." value={phone}
-                      onChange={e => setPhone(e.target.value)} className={inputBase} />
-                  </div>
+                  <label className={labelBase}>CONTACT NUMBER</label>
+                  <input
+                    type="tel"
+                    placeholder="+91 98400 12345"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    className={inputBase}
+                  />
                 </div>
-                <div className="col-span-2">
-                  <label className={labelBase}>Password *</label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelBase}>PASSWORD</label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 text-stone-300 absolute left-3.5 top-3.5 pointer-events-none" />
                     <input
-                      type={showPassword ? 'text' : 'password'} required
-                      placeholder="Min. 6 characters" value={password}
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      placeholder="••••••••••••"
+                      value={password}
                       onChange={e => setPassword(e.target.value)}
-                      className={inputBase + " pr-10"}
+                      className={inputBase + " pr-9"}
                     />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-3.5 text-stone-300 hover:text-stone-500 cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600 cursor-pointer"
+                    >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
+
+                <div>
+                  <label className={labelBase}>CONFIRM PASSWORD</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      placeholder="Re-enter password"
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      className={inputBase + " pr-9"}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600 cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
               </div>
-              <button type="submit" disabled={loading}
-                className="w-full py-3 rounded-xl bg-[#1E3932] hover:bg-[#152d26] text-white text-xs uppercase tracking-widest font-bold transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60">
-                {loading ? 'Creating Account...' : <><UserPlus className="w-4 h-4" /> Create Account</>}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-[#0F251C] hover:bg-[#16382B] text-[#DFC993] hover:text-white text-xs uppercase tracking-widest font-bold transition-all cursor-pointer shadow-md disabled:opacity-60 mt-2"
+              >
+                {loading ? 'Creating Account...' : 'COMPLETE REGISTRATION'}
               </button>
             </form>
           )}
-        </div>
-
-        {/* Footer note */}
-        <div className="px-6 pb-5 text-center">
-          <p className="text-[10px] text-stone-300">
-            By continuing you agree to Mayflower's{' '}
-            <span className="text-stone-400 underline cursor-pointer">Terms of Service</span>
-            {' '}and{' '}
-            <span className="text-stone-400 underline cursor-pointer">Privacy Policy</span>
-          </p>
         </div>
       </div>
     </div>
   );
 };
+

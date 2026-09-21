@@ -135,26 +135,13 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="The Mayflower Chennai - Register / Sign In"
             title={currentUser ? `Account Profile: ${currentUser.name}` : "Click to Register or Sign In"}
           >
-            {/* Logo Badge: Letter 'M' Only */}
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-[18px] bg-[#FAF7F2] border border-[#2D4030]/50 shadow-2xs flex items-center justify-center shrink-0 group-hover:border-[#2D4030] group-hover:scale-105 group-hover:shadow-md transition-all duration-300">
-              <svg viewBox="0 0 100 100" className="w-4/5 h-4/5" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  d="M50 16 C54 26 64 30 70 26 C64 37 54 39 50 33 C46 39 36 37 30 26 C36 30 46 26 50 16 Z"
-                  fill="#2D4030"
-                  opacity="0.18"
-                />
-                <text
-                  x="50"
-                  y="68"
-                  textAnchor="middle"
-                  fontFamily="'Playfair Display', 'Cormorant Garamond', Georgia, serif"
-                  fontSize="56"
-                  fontWeight="700"
-                  fill="#2D4030"
-                >
-                  M
-                </text>
-              </svg>
+            {/* Logo Badge: Authentic Mayflower Emblem */}
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-[18px] bg-[#FAF7F2] border border-[#2D4030]/40 shadow-2xs flex items-center justify-center shrink-0 group-hover:border-[#2D4030] group-hover:scale-105 group-hover:shadow-md transition-all duration-300 p-1">
+              <img
+                src="/mayflower-emblem-icon.png"
+                alt="The Mayflower"
+                className="w-full h-full object-contain select-none"
+              />
             </div>
 
             {/* Brand Title & Subtitle Beside Logo */}

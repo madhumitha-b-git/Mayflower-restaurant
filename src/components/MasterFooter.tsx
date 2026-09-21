@@ -12,7 +12,7 @@ export const MasterFooter: React.FC = () => {
           Mayflower Sanctuaries Executive Command
         </p>
         <p className="tracking-wide">
-          Poes Garden • Palavakkam ECR • Anna Nagar East • Velachery Lakeside
+          Poes Garden • Palavakkam (ECR) • Egmore • Anna Nagar
         </p>
         <div className="flex items-center gap-4">
           <p className="font-mono text-[11px] text-[#86948E]">

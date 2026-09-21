@@ -137,7 +137,7 @@ export const fetchOutlets = async () => {
     { id: 'o1', name: 'Poes Garden Flagship', slug: 'poes-garden', badge: 'Flagship Sanctuary', area: 'Poes Garden, Chennai', petpooja_id: 'PP-01', tables_count: 24, covers_count: 96, is_active: true, opening_time: '12:00 PM', closing_time: '11:00 PM' },
     { id: 'o2', name: 'Palavakkam ECR Seaside', slug: 'palavakkam-ecr', badge: 'Seaside Sanctuary', area: 'East Coast Road, Chennai', petpooja_id: 'PP-02', tables_count: 18, covers_count: 72, is_active: true, opening_time: '12:00 PM', closing_time: '11:00 PM' },
     { id: 'o3', name: 'Anna Nagar East Pavilion', slug: 'anna-nagar', badge: 'City Pavilion', area: 'Anna Nagar, Chennai', petpooja_id: 'PP-03', tables_count: 16, covers_count: 64, is_active: true, opening_time: '12:00 PM', closing_time: '11:00 PM' },
-    { id: 'o4', name: 'Velachery Lakeside Conservatory', slug: 'velachery', badge: 'Lakeside Conservatory', area: 'Velachery, Chennai', petpooja_id: 'PP-04', tables_count: 20, covers_count: 80, is_active: true, opening_time: '12:00 PM', closing_time: '11:00 PM' },
+    { id: 'o4', name: 'Egmore Heritage Manor', slug: 'egmore', badge: 'Heritage Manor', area: 'Egmore, Chennai', petpooja_id: 'PP-04', tables_count: 20, covers_count: 80, is_active: true, opening_time: '12:00 PM', closing_time: '11:00 PM' },
   ];
 };
 

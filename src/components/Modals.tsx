@@ -3,20 +3,22 @@ import { ActiveModalType } from '../types';
 import { OUTLETS, BEVERAGE_ITEMS } from '../data/restaurantData';
 import { X, CheckCircle2, Star, Coffee, Send, Sparkles } from 'lucide-react';
 import { FranchiseEnquiryForm } from './FranchiseEnquiryForm';
+import { UserProfile } from '../types';
 
 interface ModalsProps {
   activeModal: ActiveModalType;
+  currentUser?: UserProfile | null;
   onClose: () => void;
 }
 
-export const Modals: React.FC<ModalsProps> = ({ activeModal, onClose }) => {
+export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClose }) => {
   const [submitted, setSubmitted] = useState(false);
   const [rating, setRating] = useState<number>(5);
 
   if (activeModal === 'none') return null;
 
   if (activeModal === 'franchise') {
-    return <FranchiseEnquiryForm user={null} onClose={onClose} />;
+    return <FranchiseEnquiryForm user={currentUser || null} onClose={onClose} />;
   }
 
   const handleSubmit = (e: React.FormEvent) => {

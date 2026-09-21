@@ -1,5 +1,7 @@
 export interface PatronProfile {
   name: string;
+  email?: string;
+  phone?: string;
   monogram: string;
   tier: 'Green' | 'Gold' | 'Black Diamond' | string;
   stars: number;

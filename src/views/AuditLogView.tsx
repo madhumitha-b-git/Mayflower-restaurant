@@ -278,9 +278,9 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ user }) => {
             >
               <option value="all">All Sanctuaries</option>
               <option value="poes">Poes Garden</option>
-              <option value="palavakkam">Palavakkam ECR</option>
-              <option value="anna nagar">Anna Nagar East</option>
-              <option value="velachery">Velachery Lakeside</option>
+              <option value="palavakkam">Palavakkam (ECR)</option>
+              <option value="egmore">Egmore</option>
+              <option value="anna nagar">Anna Nagar</option>
               <option value="hq">Chennai HQ</option>
             </select>
           </div>

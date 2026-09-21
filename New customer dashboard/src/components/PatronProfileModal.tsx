@@ -86,41 +86,6 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
             </div>
           </div>
 
-          {/* Preferences Fields */}
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#081C15]">
-                Dietary &amp; Sommelier Preferences
-              </label>
-              <input
-                type="text"
-                value={dietaryInput}
-                onChange={(e) => setDietaryInput(e.target.value)}
-                placeholder="Comma separated: e.g. Truffle Degustation, No Shellfish..."
-                className="w-full text-xs font-medium text-stone-800 bg-white border border-[#E8E2D5] rounded-lg p-2.5 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none"
-              />
-              <p className="text-[10px] text-stone-400">
-                Our kitchen &amp; Maître d' automatically observe these preferences on all reservations.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[#081C15]">
-                Preferred Seating Atmosphere
-              </label>
-              <select
-                value={preferredSeating}
-                onChange={(e) => setPreferredSeating(e.target.value)}
-                className="w-full text-xs font-medium text-stone-800 bg-white border border-[#E8E2D5] rounded-lg p-2.5 focus:border-[#C5A880] focus:ring-1 focus:ring-[#C5A880] outline-none"
-              >
-                <option value="Quiet corner or Verandah booth">Quiet corner or Verandah booth</option>
-                <option value="Direct oceanfront terrace sunset table">Direct oceanfront terrace sunset table</option>
-                <option value="Central Salon banquette under chandelier">Central Salon banquette under chandelier</option>
-                <option value="Sommelier cellar tasting alcove">Sommelier cellar tasting alcove</option>
-              </select>
-            </div>
-          </div>
-
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E8E2D5]">
             <button
               onClick={onClose}
@@ -128,12 +93,6 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
               type="button"
             >
               Close
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-lg bg-[#081C15] hover:bg-[#0D2818] text-[#DFC993] hover:text-white border border-[#C5A880]/50 text-xs font-semibold uppercase tracking-widest shadow-md transition-all cursor-pointer"
-            >
-              Save Preferences
             </button>
           </div>
         </form>

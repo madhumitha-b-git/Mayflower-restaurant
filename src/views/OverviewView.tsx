@@ -73,16 +73,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) 
     if (selectedOutletFilter === 'poes') return outletLower.includes('poes');
     if (selectedOutletFilter === 'ecr') return outletLower.includes('palavakkam') || outletLower.includes('ecr');
     if (selectedOutletFilter === 'annanagar') return outletLower.includes('anna');
-    if (selectedOutletFilter === 'velachery') return outletLower.includes('velachery');
+    if (selectedOutletFilter === 'egmore') return outletLower.includes('egmore');
     return true;
   });
 
   const outletFilterTabs = [
     { id: 'all', label: 'All Sanctuaries' },
     { id: 'poes', label: 'Poes Garden' },
-    { id: 'ecr', label: 'Palavakkam ECR' },
-    { id: 'annanagar', label: 'Anna Nagar East' },
-    { id: 'velachery', label: 'Velachery' },
+    { id: 'ecr', label: 'Palavakkam (ECR)' },
+    { id: 'egmore', label: 'Egmore' },
+    { id: 'annanagar', label: 'Anna Nagar' },
   ];
 
   const roleDistribution = [

@@ -152,7 +152,7 @@ export const INITIAL_CUSTOMERS: CustomerProfile[] = [
     joinedDate: '13 Sept 2026',
     initials: 'H',
     vipNotes: 'Estate talent candidate briefing meetings; prefers high privacy alcove.',
-    preferredSeating: 'Velachery Alcove 2',
+    preferredSeating: 'Egmore Alcove 2',
     favoriteWine: 'Cloudy Bay Sauvignon Blanc',
   },
   {
@@ -278,10 +278,10 @@ export const INITIAL_OUTLETS: Outlet[] = [
     ],
   },
   {
-    id: 'velachery-lakeside',
-    name: 'Velachery Lakeside Conservatory',
-    typeLabel: 'LAKESIDE CONSERVATORY',
-    address: 'Bypass Waters, Lakeview Enclave, Velachery',
+    id: 'egmore',
+    name: 'Egmore Heritage Manor',
+    typeLabel: 'HERITAGE SANCTUARY',
+    address: 'Egmore, Chennai',
     tablesCount: 20,
     coversCount: 80,
     hours: '12:00 PM - 11:00 PM',
@@ -290,16 +290,16 @@ export const INITIAL_OUTLETS: Outlet[] = [
     currentLoadTables: 15,
     maxTables: 20,
     capacityPercent: 75,
-    reservedWave: '5 Waterside Tables Reserved',
-    statusNote: 'Lakeside Terrace Fully Booked',
+    reservedWave: '5 Heritage Tables Reserved',
+    statusNote: 'Cellar Tasting Fully Booked',
     imageUrl: 'https://images.unsplash.com/photo-1525610553991-2bede1a236e2?q=80&w=1000&auto=format&fit=crop',
-    verifiedTag: 'WATERFRONT CONSERVATORY • VERIFIED',
+    verifiedTag: 'HERITAGE MANOR • VERIFIED',
     tables: [
-      { id: 'vl-1', number: 'Lakefront L1', type: 'table', covers: 4, status: 'occupied', guestName: 'Chef Senthil Guest' },
-      { id: 'vl-2', number: 'Lakefront L2', type: 'table', covers: 4, status: 'occupied' },
-      { id: 'vl-3', number: 'Conservatory K1', type: 'booth', covers: 6, status: 'reserved' },
-      { id: 'vl-4', number: 'Conservatory K2', type: 'booth', covers: 6, status: 'available' },
-      { id: 'vl-5', number: 'Terrace T1', type: 'table', covers: 8, status: 'occupied' },
+      { id: 'eg-1', number: 'Cellar C1', type: 'table', covers: 4, status: 'occupied', guestName: 'Chef Senthil Guest' },
+      { id: 'eg-2', number: 'Cellar C2', type: 'table', covers: 4, status: 'occupied' },
+      { id: 'eg-3', number: 'Conservatory K1', type: 'booth', covers: 6, status: 'reserved' },
+      { id: 'eg-4', number: 'Conservatory K2', type: 'booth', covers: 6, status: 'available' },
+      { id: 'eg-5', number: 'Terrace T1', type: 'table', covers: 8, status: 'occupied' },
     ],
   },
 ];
@@ -330,7 +330,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Encrypted VPN / Chennai HQ',
       piiRedaction: 'Unmasked Audit Access',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
   {
     id: 'role-owner',
@@ -356,7 +356,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Global Executive Whitelist',
       piiRedaction: 'Full Access',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
   {
     id: 'role-admin',
@@ -382,7 +382,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Sanctuary LAN / VPN',
       piiRedaction: 'Partial Mask',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
   {
     id: 'role-manager',
@@ -408,7 +408,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Sanctuary Wi-Fi',
       piiRedaction: 'Partial Mask',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
   {
     id: 'role-chef',
@@ -434,7 +434,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Kitchen Terminals Only',
       piiRedaction: 'All Masked',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
   {
     id: 'role-hr',
@@ -459,7 +459,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Chennai HQ IP Whitelist',
       piiRedaction: 'Partial Mask',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
   {
     id: 'role-accountant',
@@ -484,7 +484,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Finance Suite IP',
       piiRedaction: 'Financial Only',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
   {
     id: 'role-customer',
@@ -509,7 +509,7 @@ export const INITIAL_ROLE_MATRIX: RoleMatrixRow[] = [
       ipPerimeter: 'Public Web Application',
       piiRedaction: 'Self PII Only',
     },
-    clusterCoverage: ['Poes Garden', 'Palavakkam ECR', 'Anna Nagar East', 'Velachery Lake'],
+    clusterCoverage: ['Poes Garden', 'Palavakkam (ECR)', 'Egmore', 'Anna Nagar'],
   },
 ];
 
@@ -524,7 +524,7 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     targetId: 'task-1',
     payload: { remarks: 'Temperature verified & cold room seal inspected' },
     hmacStatus: 'Signed HMAC',
-    outlet: 'Velachery Lakeside',
+    outlet: 'Egmore',
     ip: '10.4.18.22',
     category: 'kitchen',
   },
@@ -629,7 +629,7 @@ export const INITIAL_RECENT_ACTIVITIES: RecentActivity[] = [
   {
     id: 'act-4',
     time: '19:28:11 IST',
-    outlet: 'Velachery Lakeside',
+    outlet: 'Egmore',
     personName: 'Chef Senthil',
     action: 'Dine in',
     amount: 34200.0,
@@ -661,7 +661,7 @@ export const INITIAL_RECENT_ACTIVITIES: RecentActivity[] = [
   {
     id: 'act-8',
     time: '18:58:30 IST',
-    outlet: 'Velachery Lakeside',
+    outlet: 'Egmore',
     personName: 'Harish Kumar',
     action: 'Take away',
     amount: 14750.0,
@@ -693,7 +693,7 @@ export const INITIAL_RECENT_ACTIVITIES: RecentActivity[] = [
   {
     id: 'act-12',
     time: '18:30:15 IST',
-    outlet: 'Velachery Lakeside',
+    outlet: 'Egmore',
     personName: 'Lakefront L2',
     action: 'Booked a slot',
     amount: 20000.0,
@@ -725,7 +725,7 @@ export const INITIAL_RECENT_ACTIVITIES: RecentActivity[] = [
   {
     id: 'act-16',
     time: '17:55:00 IST',
-    outlet: 'Velachery Lakeside',
+    outlet: 'Egmore',
     personName: 'Anita Menon',
     action: 'Dine in',
     amount: 26500.0,

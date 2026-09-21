@@ -508,6 +508,7 @@ export interface Database {
           status: FranchiseStatus;
           internal_notes: string | null;
           assigned_to: string | null;
+          customer_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -521,6 +522,7 @@ export interface Database {
           status?: FranchiseStatus;
           internal_notes?: string | null;
           assigned_to?: string | null;
+          customer_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -534,6 +536,7 @@ export interface Database {
           status?: FranchiseStatus;
           internal_notes?: string | null;
           assigned_to?: string | null;
+          customer_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };

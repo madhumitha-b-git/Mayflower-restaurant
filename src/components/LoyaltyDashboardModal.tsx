@@ -62,8 +62,12 @@ export const LoyaltyDashboardModal: React.FC<LoyaltyDashboardModalProps> = ({
         </button>
 
         <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-xl bg-[#2D4030] text-white flex items-center justify-center font-serif font-bold text-sm">
-            M
+          <div className="w-8 h-8 rounded-xl bg-[#FAF7F2] border border-[#2D4030]/30 flex items-center justify-center p-0.5 overflow-hidden shrink-0">
+            <img
+              src="/mayflower-emblem-icon.png"
+              alt="The Mayflower"
+              className="w-full h-full object-contain"
+            />
           </div>
           <span className="font-cinzel text-sm font-bold tracking-widest text-[#1A1A1A] uppercase hidden sm:inline-block">
             MAYFLOWER REWARDS

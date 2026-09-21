@@ -153,34 +153,43 @@ export class SupabaseDataProvider implements DataProvider {
 
   async getFeedback(actor: UserProfile): Promise<SeedFeedback[]> {
     try {
-      const { data, error } = await supabase.from('feedback').select('id, rating, message, status, created_at, outlet, user_profiles(name, email)').limit(50);
-      if (!error && data && data.length > 0) {
+      const { data, error } = await supabase
+        .from('feedback')
+        .select('id, customer_id, rating, comment, status, created_at, outlet_id, outlets(name)')
+        .limit(50);
+      if (!error && data) {
         const mapped: SeedFeedback[] = data.map((fb: any) => ({
           id: fb.id,
           customerId: fb.customer_id,
-          customerName: fb.user_profiles?.name || 'Guest',
-          email: fb.user_profiles?.email || '',
-          outlet: fb.outlet || 'Poes Garden Flagship',
+          customerName: actor.name || 'Guest',
+          email: actor.email || '',
+          outlet: fb.outlets?.name || 'Poes Garden',
           rating: fb.rating,
-          message: fb.message,
+          message: fb.comment || '',
           status: fb.status || 'New',
           createdAt: fb.created_at || '',
         }));
         return mapped.filter(f => canViewFeedback(actor, f));
       }
     } catch {}
-    return this.fallback.getFeedback(actor);
+    return [];
   }
 
   async submitFeedback(actor: UserProfile, payload: { outlet: string; rating: number; message: string; reservationId?: string }): Promise<SeedFeedback> {
     if (!canSubmitFeedback(actor)) throw new Error('Denied: Must be authenticated to submit feedback');
     try {
+      const lower = (payload.outlet || '').toLowerCase();
+      let outletId = 'a1000000-0000-0000-0000-000000000001';
+      if (lower.includes('anna')) outletId = 'a1000000-0000-0000-0000-000000000002';
+      else if (lower.includes('egmore')) outletId = 'a1000000-0000-0000-0000-000000000003';
+      else if (lower.includes('palavakkam') || lower.includes('ecr')) outletId = 'a1000000-0000-0000-0000-000000000004';
+
       await supabase.from('feedback').insert({
         customer_id: actor.id,
-        outlet: payload.outlet,
+        outlet_id: outletId,
         rating: payload.rating,
-        message: payload.message,
-        reservation_id: payload.reservationId,
+        comment: payload.message,
+        status: 'new',
       });
       this.emit('feedback');
     } catch {}
@@ -274,53 +283,51 @@ export class SupabaseDataProvider implements DataProvider {
 
   async getFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]> {
     if (!canViewFranchiseEnquiries(actor)) throw new Error('Denied: Cannot view franchise enquiries');
-    const { data, error } = await supabase.from('franchise_enquiries').select('*, franchise_documents(*)').order('created_at', { ascending: false });
-    if (error) throw error;
-    return data.map((d: any) => ({
-      id: d.id,
-      applicantName: d.applicant_name,
-      email: d.email,
-      phone: d.phone,
-      cityInterested: d.city_interested,
-      message: d.message,
-      status: d.status,
-      internalNotes: d.internal_notes,
-      createdAt: d.created_at,
-      customerId: d.customer_id,
-      investmentBudget: d.investment_budget,
-      priorExperience: d.prior_experience,
-      documents: d.franchise_documents?.map((doc: any) => ({
-        id: doc.id,
-        fileName: doc.file_name,
-        storagePath: doc.storage_path,
-        uploadedAt: doc.created_at
-      }))
-    }));
+    try {
+      const { data, error } = await supabase.from('franchise_enquiries').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        id: d.id,
+        applicantName: d.applicant_name,
+        email: d.email,
+        phone: d.phone,
+        cityInterested: d.city_interested,
+        message: d.message,
+        status: d.status,
+        internalNotes: d.internal_notes,
+        createdAt: d.created_at,
+        customerId: d.customer_id,
+        investmentBudget: d.investment_budget,
+        priorExperience: d.prior_experience,
+        documents: d.documents || [],
+      }));
+    } catch {
+      return this.fallback.getFranchiseEnquiries(actor);
+    }
   }
 
   async getMyFranchiseEnquiries(actor: UserProfile): Promise<SeedFranchiseEnquiry[]> {
-    const { data, error } = await supabase.from('franchise_enquiries').select('*, franchise_documents(*)').eq('customer_id', actor.id).order('created_at', { ascending: false });
-    if (error) throw error;
-    return data.map((d: any) => ({
-      id: d.id,
-      applicantName: d.applicant_name,
-      email: d.email,
-      phone: d.phone,
-      cityInterested: d.city_interested,
-      message: d.message,
-      status: d.status,
-      internalNotes: d.internal_notes,
-      createdAt: d.created_at,
-      customerId: d.customer_id,
-      investmentBudget: d.investment_budget,
-      priorExperience: d.prior_experience,
-      documents: d.franchise_documents?.map((doc: any) => ({
-        id: doc.id,
-        fileName: doc.file_name,
-        storagePath: doc.storage_path,
-        uploadedAt: doc.created_at
-      }))
-    }));
+    try {
+      const { data, error } = await supabase.from('franchise_enquiries').select('*').eq('customer_id', actor.id).order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        id: d.id,
+        applicantName: d.applicant_name,
+        email: d.email,
+        phone: d.phone,
+        cityInterested: d.city_interested,
+        message: d.message,
+        status: d.status,
+        internalNotes: d.internal_notes,
+        createdAt: d.created_at,
+        customerId: d.customer_id,
+        investmentBudget: d.investment_budget,
+        priorExperience: d.prior_experience,
+        documents: d.documents || [],
+      }));
+    } catch {
+      return this.fallback.getMyFranchiseEnquiries(actor);
+    }
   }
 
   async updateFranchiseEnquiryStatus(actor: UserProfile, enquiryId: string, status: string, internalNotes?: string): Promise<SeedFranchiseEnquiry> {
@@ -362,7 +369,8 @@ export class SupabaseDataProvider implements DataProvider {
       email: payload.email,
       phone: payload.phone,
       city_interested: payload.cityInterested,
-      message: extraNotes || 'New franchise enquiry'
+      message: extraNotes || 'New franchise enquiry',
+      customer_id: payload.customerId || null,
     });
     if (res.error || !res.data) throw res.error || new Error('Failed to submit');
     return {

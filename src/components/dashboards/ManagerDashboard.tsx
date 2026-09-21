@@ -422,9 +422,9 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
                 className="bg-transparent text-xs font-semibold text-[#1E3932] focus:outline-none cursor-pointer"
               >
                 <option value="poes">Poes Garden Flagship</option>
-                <option value="ecr">Palavakkam ECR</option>
-                <option value="anna">Anna Nagar East</option>
-                <option value="velachery">Velachery Lakeside</option>
+                <option value="ecr">Palavakkam (ECR)</option>
+                <option value="egmore">Egmore Heritage Manor</option>
+                <option value="anna">Anna Nagar</option>
               </select>
               <ChevronDown className="w-3 h-3 text-stone-400" />
             </div>

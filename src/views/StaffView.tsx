@@ -233,9 +233,9 @@ export const StaffView: React.FC<StaffViewProps> = ({ user }) => {
             >
               <option value="all">Outlet: All Outlets</option>
               <option value="poes">Poes Garden</option>
-              <option value="palavakkam">Palavakkam ECR</option>
-              <option value="anna nagar">Anna Nagar East</option>
-              <option value="velachery">Velachery</option>
+              <option value="palavakkam">Palavakkam (ECR)</option>
+              <option value="egmore">Egmore</option>
+              <option value="anna nagar">Anna Nagar</option>
               <option value="hq">Chennai HQ</option>
             </select>
           </div>
@@ -537,9 +537,9 @@ export const StaffView: React.FC<StaffViewProps> = ({ user }) => {
                     className="w-full text-xs p-2.5 rounded-lg border border-[#D9D6CB] bg-white"
                   >
                     <option value="Poes Garden">Poes Garden</option>
-                    <option value="Palavakkam ECR">Palavakkam ECR</option>
-                    <option value="Anna Nagar East">Anna Nagar East</option>
-                    <option value="Velachery Lakeside">Velachery Lakeside</option>
+                    <option value="Palavakkam (ECR)">Palavakkam (ECR)</option>
+                    <option value="Egmore">Egmore</option>
+                    <option value="Anna Nagar">Anna Nagar</option>
                     <option value="All Outlets">All Outlets</option>
                   </select>
                 </div>
