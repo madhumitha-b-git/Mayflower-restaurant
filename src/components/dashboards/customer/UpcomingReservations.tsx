@@ -53,10 +53,10 @@ export const UpcomingReservations: React.FC<UpcomingReservationsProps> = ({
             >
               <div className="flex flex-col md:flex-row">
                 {/* Visual Photography Preview */}
-                <div className="md:w-72 lg:w-80 relative min-h-[190px] md:min-h-full shrink-0 overflow-hidden bg-stone-100">
+                <div className="w-full h-48 md:h-auto md:w-72 lg:w-80 relative shrink-0 overflow-hidden bg-stone-100">
                   <img
                     alt={res.salon}
-                    className="w-full h-full object-cover object-center transition-transform duration-700 hover:scale-105"
+                    className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 hover:scale-105"
                     src={res.imageUrl}
                     referrerPolicy="no-referrer"
                   />

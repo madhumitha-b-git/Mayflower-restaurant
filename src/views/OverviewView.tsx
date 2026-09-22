@@ -6,9 +6,21 @@ import {
   Utensils,
   Star,
 } from 'lucide-react';
-import { TabType, RecentActivity, UserProfile } from '../types';
-import { INITIAL_RECENT_ACTIVITIES } from '../data/mockData';
+import { TabType, UserProfile } from '../types';
 import { fetchAdminOperationalData, fetchAllStaff, fetchOutlets } from '../lib/adminService';
+
+interface ReservationItem {
+  id: string;
+  bookingCode: string;
+  date: string;
+  time: string;
+  outlet: string;
+  personName: string;
+  phone?: string;
+  guests: number;
+  status: string;
+  seatingArea?: string;
+}
 
 interface OverviewViewProps {
   onNavigate: (tab: TabType) => void;
@@ -17,7 +29,7 @@ interface OverviewViewProps {
 
 export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) => {
   const [selectedOutletFilter, setSelectedOutletFilter] = useState<string>('all');
-  const [activities, setActivities] = useState<RecentActivity[]>(INITIAL_RECENT_ACTIVITIES);
+  const [reservations, setReservations] = useState<ReservationItem[]>([]);
   const [staffCount, setStaffCount] = useState<number>(0);
   const [outletCount, setOutletCount] = useState<number>(0);
   const [guestCovers, setGuestCovers] = useState<number>(0);
@@ -35,25 +47,29 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) 
 
         if (!isActive) return;
 
-        setStaffCount(staffMembers.length || 0);
+        setStaffCount(staffMembers.filter(s => (s.role || '').toLowerCase() !== 'customer' && s.is_active).length || 0);
         setOutletCount(outlets.length || 0);
         setGuestCovers(
           (outlets || []).reduce((sum, outlet: any) => sum + Number(outlet.covers_count ?? outlet.coversCount ?? 0), 0)
         );
 
-        const mappedActivities = (operationalData?.reservations || []).slice(0, 8).map((reservation: any, index: number) => ({
-          id: String(reservation.id ?? `${index}-reservation`),
-          time: reservation.reservation_date ? new Date(reservation.reservation_date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : 'Now',
-          outlet: reservation.outlet_name || reservation.outlet || 'Poes Garden',
-          personName: reservation.customer_name || reservation.guest_name || 'Guest',
-          action: (reservation.status === 'cancelled' ? 'Booked a slot' : 'Dine in') as RecentActivity['action'],
-          amount: Number(reservation.total_amount ?? reservation.amount ?? reservation.bill_amount ?? 0),
-        })) as RecentActivity[];
+        const mappedReservations = (operationalData?.reservations || []).map((r: any, index: number) => ({
+          id: String(r.id ?? `res-${index}`),
+          bookingCode: r.booking_code || r.bookingCode || `MF-${String(r.id || '').slice(-4)}`,
+          date: r.date || r.reservation_date || '',
+          time: r.timeSlot || r.time_slot || '19:00',
+          outlet: r.outlet_name || r.outlet || 'Poes Garden Flagship',
+          personName: r.customer_name || r.customerName || 'Sanctuary Patron',
+          phone: r.phone || '',
+          guests: Number(r.party_size || r.guests || 2),
+          status: r.status || 'Confirmed',
+          seatingArea: r.seating_area || r.seatingArea || 'Main Dining',
+        })) as ReservationItem[];
 
-        setActivities(mappedActivities.length ? mappedActivities : INITIAL_RECENT_ACTIVITIES);
+        setReservations(mappedReservations);
       } catch {
         if (isActive) {
-          setActivities(INITIAL_RECENT_ACTIVITIES);
+          setReservations([]);
           setStaffCount(0);
           setOutletCount(0);
           setGuestCovers(0);
@@ -62,14 +78,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) 
     };
 
     loadDashboardData();
+    const interval = setInterval(loadDashboardData, 6000);
     return () => {
       isActive = false;
+      clearInterval(interval);
     };
   }, [user]);
 
-  const filteredActivities = activities.filter((act) => {
+  const filteredReservations = reservations.filter((res) => {
     if (selectedOutletFilter === 'all') return true;
-    const outletLower = act.outlet.toLowerCase();
+    const outletLower = res.outlet.toLowerCase();
     if (selectedOutletFilter === 'poes') return outletLower.includes('poes');
     if (selectedOutletFilter === 'ecr') return outletLower.includes('palavakkam') || outletLower.includes('ecr');
     if (selectedOutletFilter === 'annanagar') return outletLower.includes('anna');
@@ -83,45 +101,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) 
     { id: 'ecr', label: 'Palavakkam (ECR)' },
     { id: 'egmore', label: 'Egmore' },
     { id: 'annanagar', label: 'Anna Nagar' },
-  ];
-
-  const roleDistribution = [
-    {
-      id: 'owner',
-      role: 'Owner',
-      subtitle: 'Sanctuary trust holder & executive steering.',
-      barColor: 'bg-[#B2873E]',
-    },
-    {
-      id: 'admin',
-      role: 'Admin',
-      subtitle: 'System administration & protocol verification.',
-      barColor: 'bg-[#2B3B34]',
-    },
-    {
-      id: 'manager',
-      role: 'Manager',
-      subtitle: 'Day-to-day salon operations & guest...',
-      barColor: 'bg-[#D9A354]',
-    },
-    {
-      id: 'chef',
-      role: 'Head Chef',
-      subtitle: 'Culinary curation, courses & cellar pairings.',
-      barColor: 'bg-[#10B981]',
-    },
-    {
-      id: 'hr',
-      role: 'HR Lead',
-      subtitle: 'Appraisals, credentials & estate onboarding.',
-      barColor: 'bg-[#556960]',
-    },
-    {
-      id: 'comptroller',
-      role: 'Comptroller',
-      subtitle: 'Fiscal reconciliation, ledger balances & tax.',
-      barColor: 'bg-[#8E5E32]',
-    },
   ];
 
   return (
@@ -268,45 +247,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) 
         </div>
       </section>
 
-      {/* Staff by Role Distribution */}
-      <section
-        id="staff-distribution-section"
-        className="bg-white rounded-xl border border-[#E8E5DD] p-6 shadow-xs"
-      >
-        <div className="mb-5">
-          <h2 className="text-lg font-serif font-semibold text-[#18211E]">
-            Staff by Role Distribution
-          </h2>
-          <p className="text-xs text-[#5B6761] mt-0.5">
-            Active personnel authorized across 4 Chennai sanctuary sanctuaries.
-          </p>
-        </div>
-
-        {/* 6 Role distribution cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {roleDistribution.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => onNavigate('staff')}
-              className="bg-[#FCFAF7] border border-[#ECE6DB] hover:border-[#C29B38] p-4 rounded-xl transition cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <h4 className="font-serif font-semibold text-sm text-[#18231F] group-hover:text-[#967C3B] transition">
-                  {item.role}
-                </h4>
-                <p className="text-[11px] text-[#64716B] mt-1 line-clamp-2 leading-snug">
-                  {item.subtitle}
-                </p>
-              </div>
-              <div className="w-full bg-[#E8E2D5] h-1.5 rounded-full mt-4 overflow-hidden">
-                <div className={`h-full ${item.barColor} w-full`} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Recent Activities */}
+      {/* Real Customer Reservations */}
       <section
         id="recent-activities-section"
         className="bg-white rounded-xl border border-[#E8E5DD] p-6 shadow-xs"
@@ -314,8 +255,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div>
             <h2 className="text-xl font-serif font-semibold text-[#18211E]">
-              Recent Activities
+              Recent Table Reservations
             </h2>
+            <p className="text-xs text-[#5B6761] mt-0.5">
+              Live reservations placed by sanctuary patrons.
+            </p>
           </div>
 
           {/* Filter Pills */}
@@ -336,55 +280,52 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate, user }) 
           </div>
         </div>
 
-        {/* Telemetry Activity Table */}
+        {/* Real Customer Reservations Table */}
         <div className="overflow-x-auto border border-[#ECE8DF] rounded-lg">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#FAF9F5] border-b border-[#ECE7DC] text-[11px] font-mono text-[#6C7A74] uppercase tracking-wider">
-                <th className="py-3 px-4 font-semibold">TIME</th>
+                <th className="py-3 px-4 font-semibold">BOOKING REF</th>
+                <th className="py-3 px-4 font-semibold">DATE &amp; TIME</th>
                 <th className="py-3 px-4 font-semibold">OUTLET</th>
-                <th className="py-3 px-4 font-semibold">NAME OF THE PERSON</th>
-                <th className="py-3 px-4 font-semibold">ACTION</th>
-                <th className="py-3 px-4 font-semibold text-right">AMOUNT</th>
+                <th className="py-3 px-4 font-semibold">PATRON NAME</th>
+                <th className="py-3 px-4 font-semibold">PARTY SIZE</th>
+                <th className="py-3 px-4 font-semibold">STATUS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1EFE8] text-xs">
-              {filteredActivities.length === 0 ? (
+              {filteredReservations.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-zinc-500 font-mono text-xs">
-                    No recent activities recorded for this sanctuary.
+                  <td colSpan={6} className="py-8 text-center text-zinc-500 font-mono text-xs">
+                    No reservations recorded for this sanctuary.
                   </td>
                 </tr>
               ) : (
-                filteredActivities.map((act) => (
-                  <tr key={act.id} className="hover:bg-[#FAF9F5] transition-colors">
+                filteredReservations.map((res) => (
+                  <tr key={res.id} className="hover:bg-[#FAF9F5] transition-colors">
+                    <td className="py-3.5 px-4 font-mono font-bold text-[#182520]">
+                      #{res.bookingCode}
+                    </td>
                     <td className="py-3.5 px-4 font-mono text-[#57645E]">
-                      {act.time}
+                      {res.date} · {res.time}
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#FAF6EE] text-[#55431D] border border-[#E5DBCA]">
                         <span className="w-1.5 h-1.5 rounded-full bg-[#B89058]"></span>
-                        {act.outlet}
+                        {res.outlet}
                       </span>
                     </td>
                     <td className="py-3.5 px-4 font-medium text-[#1E2C26]">
-                      {act.personName}
+                      {res.personName}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-[#57645E]">
+                      {res.guests} {res.guests === 1 ? 'Guest' : 'Guests'}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded font-mono text-[11px] font-medium border ${
-                          act.action === 'Dine in'
-                            ? 'bg-[#F2F6F3] text-[#1E523A] border-[#D0E2D7]'
-                            : act.action === 'Take away'
-                            ? 'bg-[#FDF7EE] text-[#7A561D] border-[#E8D9C0]'
-                            : 'bg-[#F4F2F8] text-[#4F3C75] border-[#DCD5EB]'
-                        }`}
-                      >
-                        {act.action}
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F2F6F3] text-[#1E523A] border border-[#D0E2D7]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {res.status === 'Confirmed' || res.status === 'confirmed' ? 'Reserved' : res.status}
                       </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-[#182520]">
-                      ₹ {act.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 ))

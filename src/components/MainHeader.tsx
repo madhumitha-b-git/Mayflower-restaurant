@@ -5,7 +5,7 @@ import {
   Star,
   Building2,
   ShieldAlert,
-  Zap,
+  ClipboardList,
 } from 'lucide-react';
 import { TabType } from '../types';
 
@@ -23,6 +23,11 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
       id: 'overview',
       label: 'Overview',
       icon: <LayoutDashboard className="w-4 h-4" />,
+    },
+    {
+      id: 'sops',
+      label: 'SOPs & Checklists',
+      icon: <ClipboardList className="w-4 h-4" />,
     },
     {
       id: 'staff',
@@ -43,11 +48,6 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
       id: 'roles-permissions',
       label: 'Roles & Permissions',
       icon: <ShieldAlert className="w-4 h-4" />,
-    },
-    {
-      id: 'audit-log',
-      label: 'Audit Log',
-      icon: <Zap className="w-4 h-4" />,
     },
   ];
 

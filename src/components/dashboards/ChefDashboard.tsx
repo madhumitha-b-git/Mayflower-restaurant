@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Flame, Clock, CheckCircle2, RefreshCw, Printer, ShieldAlert, X,
-  Sparkles, Camera, ChefHat, ClipboardList, AlertTriangle,
+  Sparkles, ChefHat, ClipboardList, AlertTriangle,
   Layers, Utensils, Leaf, Star,
-  MapPin, Image as ImageIcon, Check, Circle, Timer,
+  Check, Circle, Timer,
   TrendingUp, Users, Coffee, Package
 } from 'lucide-react';
 import { UserProfile } from '../../types';
-import { getDataProvider } from '../../data/DataProvider';
-import { useTasks } from '../../hooks/useAppData';
-import { EvidenceUploadModal } from './shared/EvidenceUploadModal';
+import { SOPChecklistManagement } from './shared/SOPChecklistManagement';
 
 interface Props {
   user: UserProfile;
@@ -132,16 +130,6 @@ const MENU_ITEMS = [
   },
 ];
 
-// ── SOP category colors ───────────────────────────────────────────────────────
-const CATEGORY_COLORS: Record<string, string> = {
-  'HACCP': 'text-red-700 bg-red-50 border-red-200',
-  'Sanitation': 'text-blue-700 bg-blue-50 border-blue-200',
-  'Prep': 'text-amber-700 bg-amber-50 border-amber-200',
-  'Quality': 'text-emerald-700 bg-emerald-50 border-emerald-200',
-  'Opening': 'text-purple-700 bg-purple-50 border-purple-200',
-  'Closing': 'text-slate-700 bg-slate-50 border-slate-200',
-};
-
 type ChefTab = 'kds' | 'sops' | 'prep' | 'eightysix' | 'menu' | 'shift';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -157,16 +145,6 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
   const [eightySixItem, setEightySixItem] = useState('');
   const [eightySixReason, setEightySixReason] = useState('');
   const [eightySixBoard, setEightySixBoard] = useState<EightySixItem[]>(EIGHTY_SIX_BOARD);
-
-  // SOP Evidence
-  const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState('');
-  const [selectedTaskTitle, setSelectedTaskTitle] = useState('');
-  const [selectedTaskCategory, setSelectedTaskCategory] = useState('');
-
-  // Tasks
-  const { data: kitchenTasks, refetch: refetchTasks } = useTasks(user);
-  const [localTaskStatus, setLocalTaskStatus] = useState<Record<string, string>>({});
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -193,19 +171,6 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
     setTickets(prev => prev.filter(t => t.id !== id));
     showToast(`Ticket bumped to Pass — service complete.`);
   };
-
-  const handleToggleTaskStatus = useCallback(async (taskId: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'Completed' ? 'Pending' : 'Completed';
-    setLocalTaskStatus(prev => ({ ...prev, [taskId]: newStatus }));
-    try {
-      await getDataProvider().updateTaskStatus(user, taskId, newStatus as any);
-      showToast(`SOP updated: ${newStatus}`);
-      refetchTasks();
-    } catch (err: any) {
-      setLocalTaskStatus(prev => { const s = { ...prev }; delete s[taskId]; return s; });
-      showToast(`Error: ${err.message}`);
-    }
-  }, [user, refetchTasks]);
 
   const handleConfirmEightySix = () => {
     const newItem: EightySixItem = {
@@ -234,25 +199,13 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
     return true;
   });
 
-  const sopTasks = kitchenTasks && kitchenTasks.length > 0 ? kitchenTasks : [
-    { id: 'sop-1', title: 'Line Sanitizer Bucket PPM Check', category: 'Sanitation', status: 'Pending', dueAt: '11:00 AM', priority: 'High' },
-    { id: 'sop-2', title: 'Walk-in Cooler Temp Log (Target < 3.5°C)', category: 'HACCP', status: 'Completed', dueAt: '12:00 PM', priority: 'Critical' },
-    { id: 'sop-3', title: 'Protein Thawing & Date Tag Audit', category: 'Prep', status: 'In Progress', dueAt: '02:00 PM', priority: 'Medium' },
-    { id: 'sop-4', title: 'Cross-Contamination Surface Swab', category: 'HACCP', status: 'Pending', dueAt: '01:00 PM', priority: 'Critical' },
-    { id: 'sop-5', title: 'Cold Display Temp Log (Dessert Station)', category: 'HACCP', status: 'Pending', dueAt: '03:00 PM', priority: 'High' },
-    { id: 'sop-6', title: 'Waste Disposal & Bin Sanitization', category: 'Sanitation', status: 'Completed', dueAt: '10:30 AM', priority: 'Medium' },
-  ];
-
-  const completedSops = sopTasks.filter(t => (localTaskStatus[t.id] || t.status) === 'Completed').length;
-  const sopProgress = sopTasks.length > 0 ? Math.round((completedSops / sopTasks.length) * 100) : 0;
-
   const prepDone = PREP_ITEMS.filter(p => p.status === 'done').length;
   const active86 = eightySixBoard.filter(i => i.status === 'active').length;
 
   // ─── Tabs config ────────────────────────────────────────────────────────────
   const TABS: { id: ChefTab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'kds', label: 'Live KDS', icon: <Flame className="w-3.5 h-3.5" />, badge: tickets.length > 0 ? String(tickets.length) : undefined },
-    { id: 'sops', label: 'SOPs & Evidence', icon: <ClipboardList className="w-3.5 h-3.5" />, badge: sopProgress < 100 ? `${sopProgress}%` : undefined },
+    { id: 'sops', label: 'SOPs & Evidence', icon: <ClipboardList className="w-3.5 h-3.5" /> },
     { id: 'prep', label: 'Daily Prep', icon: <Layers className="w-3.5 h-3.5" />, badge: `${prepDone}/${PREP_ITEMS.length}` },
     { id: 'eightysix', label: '86 Board', icon: <ShieldAlert className="w-3.5 h-3.5" />, badge: active86 > 0 ? String(active86) : undefined },
     { id: 'menu', label: 'Menu & Allergens', icon: <Utensils className="w-3.5 h-3.5" /> },
@@ -468,115 +421,9 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
 
         {/* ════════════ SOPs & EVIDENCE TAB ════════════ */}
         {activeTab === 'sops' && (
-          <>
-            {/* Progress Header */}
-            <div className="bg-[#02150c] text-white p-5 rounded-2xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <ClipboardList className="w-4 h-4 text-[#C5A880]" />
-                  <span className="text-[#C5A880] text-[10px] font-bold uppercase tracking-widest">HACCP & Kitchen SOPs</span>
-                </div>
-                <h2 className="font-serif text-xl font-bold">Operations & SOP Checklists</h2>
-                <p className="text-xs text-[#a8b5a0] mt-0.5">
-                  {completedSops} of {sopTasks.length} tasks completed today · Geo-tagged evidence required
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative w-16 h-16">
-                  <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3.5" />
-                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="#C5A880" strokeDasharray={`${sopProgress}, 100`} strokeLinecap="round" strokeWidth="3.5" />
-                  </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-[#C5A880]">{sopProgress}%</span>
-                </div>
-                <button
-                  onClick={() => refetchTasks()}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-[#C5A880] bg-white/10 px-3 py-1.5 rounded-xl hover:bg-white/20 transition cursor-pointer"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  Sync
-                </button>
-              </div>
-            </div>
-
-            {/* Info Banner — Key Requirement */}
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-3">
-              <MapPin className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-xs font-bold text-amber-800">Geo-Tagged Photo Evidence Required</p>
-                <p className="text-[11px] text-amber-700 mt-0.5">
-                  For all SOP and Operations tasks, you must capture a photo with GPS location embedded. Evidence is reviewed by your Manager in real-time. Ensure location permission is granted before tapping <strong>Upload Evidence</strong>.
-                </p>
-              </div>
-            </div>
-
-            {/* SOP Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sopTasks.map(task => {
-                const status = localTaskStatus[task.id] || task.status;
-                const isDone = status === 'Completed';
-                const catColor = CATEGORY_COLORS[task.category] || 'text-stone-700 bg-stone-50 border-stone-200';
-
-                return (
-                  <div key={task.id} className={`rounded-2xl border bg-white shadow-sm p-5 flex flex-col gap-3 transition hover:shadow-md ${isDone ? 'opacity-80' : ''}`}>
-                    {/* Header */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${catColor} mb-1.5`}>
-                          {task.category}
-                        </span>
-                        <h4 className="font-bold text-sm text-[#02150c] leading-tight">{task.title}</h4>
-                      </div>
-                      {isDone && <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />}
-                      {!isDone && status === 'In Progress' && <Circle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />}
-                    </div>
-
-                    {/* Meta */}
-                    <div className="flex items-center gap-3 text-[11px] text-stone-400">
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Due {task.dueAt}</span>
-                      {task.priority && (
-                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${task.priority === 'Critical' ? 'bg-red-50 text-red-700 border-red-200' :
-                            task.priority === 'High' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                              'bg-stone-50 text-stone-500 border-stone-200'
-                          }`}>{task.priority}</span>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 mt-auto">
-                      <button
-                        onClick={() => handleToggleTaskStatus(task.id, status)}
-                        className={`flex-1 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer text-center ${isDone
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                            : 'bg-[#02150c] text-[#C5A880] border-[#02150c] hover:bg-[#0a2a18]'
-                          }`}
-                      >
-                        {isDone ? '✓ Completed' : status === 'In Progress' ? '● In Progress' : 'Mark Complete'}
-                      </button>
-
-                      {/* Evidence Upload — KEY FEATURE */}
-                      <button
-                        onClick={() => {
-                          setSelectedTaskId(task.id);
-                          setSelectedTaskTitle(task.title);
-                          setSelectedTaskCategory(task.category);
-                          setEvidenceModalOpen(true);
-                        }}
-                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition cursor-pointer ${isDone
-                            ? 'bg-stone-50 text-stone-400 border-stone-200 cursor-default'
-                            : 'bg-white text-[#745b20] border-[#C5A880]/50 hover:bg-[#fdf8f0] hover:border-[#C5A880]'
-                          }`}
-                        title={isDone ? 'Already submitted' : 'Upload geo-tagged photo evidence'}
-                      >
-                        {isDone ? <ImageIcon className="w-3.5 h-3.5" /> : <Camera className="w-3.5 h-3.5" />}
-                        {isDone ? 'Submitted' : 'Evidence'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+          <div className="space-y-4">
+            <SOPChecklistManagement user={user} initialTab="executions" />
+          </div>
         )}
 
         {/* ════════════ DAILY PREP TAB ════════════ */}
@@ -808,7 +655,7 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { icon: <Flame className="w-4 h-4 text-red-500" />, label: 'Orders Bumped', value: INITIAL_TICKETS.length - tickets.length, max: INITIAL_TICKETS.length },
-                      { icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />, label: 'SOPs Done', value: completedSops, max: sopTasks.length },
+                      { icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />, label: 'SOPs Active', value: 'Live', max: null },
                       { icon: <TrendingUp className="w-4 h-4 text-blue-500" />, label: 'Avg Ticket Time', value: '11m', max: null },
                       { icon: <Star className="w-4 h-4 text-[#745b20]" />, label: 'VIP Tables', value: '1', max: null },
                     ].map((stat, i) => (
@@ -901,20 +748,6 @@ export const ChefDashboard: React.FC<Props> = ({ user, onSwitchRole }) => {
           </div>
         </div>
       )}
-
-      {/* ── Evidence Upload Modal (Geo-Tagged) ── */}
-      <EvidenceUploadModal
-        isOpen={evidenceModalOpen}
-        onClose={() => setEvidenceModalOpen(false)}
-        taskId={selectedTaskId}
-        taskTitle={selectedTaskTitle}
-        taskCategory={selectedTaskCategory}
-        user={user}
-        onEvidenceUploaded={() => {
-          showToast(`Geo-tagged evidence submitted for: ${selectedTaskTitle}`);
-          refetchTasks();
-        }}
-      />
     </div>
   );
 };

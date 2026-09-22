@@ -85,6 +85,13 @@ export const StaffView: React.FC = () => {
   };
 
   const filteredStaff = staffList.filter((staff) => {
+    const roleLower = (staff.role || '').toLowerCase();
+    const titleLower = (staff.title || '').toLowerCase();
+    const deptLower = (staff.department || '').toLowerCase();
+    if (roleLower.includes('customer') || titleLower.includes('customer') || deptLower.includes('customer') || roleLower === 'guest') {
+      return false;
+    }
+
     const matchesSearch =
       staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.email.toLowerCase().includes(searchQuery.toLowerCase()) ||

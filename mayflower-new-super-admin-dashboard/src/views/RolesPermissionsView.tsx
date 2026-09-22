@@ -16,10 +16,10 @@ import { RoleMatrixRow, TabType } from '../types';
 import { INITIAL_ROLE_MATRIX } from '../data/mockData';
 
 interface RolesPermissionsViewProps {
-  onNavigate: (tab: TabType) => void;
+  onNavigate?: (tab: TabType) => void;
 }
 
-export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({ onNavigate }) => {
+export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({ onNavigate: _onNavigate }) => {
   const [matrix, setMatrix] = useState<RoleMatrixRow[]>(INITIAL_ROLE_MATRIX);
   const [selectedRoleIndex, setSelectedRoleIndex] = useState<number>(3); // Default Manager
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -229,13 +229,6 @@ export const RolesPermissionsView: React.FC<RolesPermissionsViewProps> = ({ onNa
               <h4 className="font-serif font-semibold text-sm text-[#18231F]">
                 Recent RBAC Modifications
               </h4>
-              <button
-                id="btn-view-audit-trail-rbac"
-                onClick={() => onNavigate('audit-log')}
-                className="text-[10px] font-mono text-[#967C3B] hover:underline uppercase tracking-wider font-semibold cursor-pointer"
-              >
-                VIEW COMPLETE AUDIT TRAIL →
-              </button>
             </div>
 
             <div className="space-y-2 text-xs">

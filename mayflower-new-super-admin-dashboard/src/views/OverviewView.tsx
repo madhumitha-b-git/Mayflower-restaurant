@@ -218,45 +218,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
         </div>
       </section>
 
-      {/* Staff by Role Distribution */}
-      <section
-        id="staff-distribution-section"
-        className="bg-white rounded-xl border border-[#E8E5DD] p-6 shadow-xs"
-      >
-        <div className="mb-5">
-          <h2 className="text-lg font-serif font-semibold text-[#18211E]">
-            Staff by Role Distribution
-          </h2>
-          <p className="text-xs text-[#5B6761] mt-0.5">
-            Active personnel authorized across 4 Chennai sanctuary sanctuaries.
-          </p>
-        </div>
-
-        {/* 6 Role distribution cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {roleDistribution.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => onNavigate('staff')}
-              className="bg-[#FCFAF7] border border-[#ECE6DB] hover:border-[#C29B38] p-4 rounded-xl transition cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <h4 className="font-serif font-semibold text-sm text-[#18231F] group-hover:text-[#967C3B] transition">
-                  {item.role}
-                </h4>
-                <p className="text-[11px] text-[#64716B] mt-1 line-clamp-2 leading-snug">
-                  {item.subtitle}
-                </p>
-              </div>
-              <div className="w-full bg-[#E8E2D5] h-1.5 rounded-full mt-4 overflow-hidden">
-                <div className={`h-full ${item.barColor} w-full`} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Recent Activities */}
+      {/* Recent Reservations */}
       <section
         id="recent-activities-section"
         className="bg-white rounded-xl border border-[#E8E5DD] p-6 shadow-xs"
@@ -264,8 +226,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
           <div>
             <h2 className="text-xl font-serif font-semibold text-[#18211E]">
-              Recent Activities
+              Recent Table Reservations
             </h2>
+            <p className="text-xs text-[#5B6761] mt-0.5">
+              Live reservations placed by sanctuary patrons.
+            </p>
           </div>
 
           {/* Filter Pills */}
@@ -286,23 +251,22 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        {/* Telemetry Activity Table */}
+        {/* Reservations Table */}
         <div className="overflow-x-auto border border-[#ECE8DF] rounded-lg">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#FAF9F5] border-b border-[#ECE7DC] text-[11px] font-mono text-[#6C7A74] uppercase tracking-wider">
                 <th className="py-3 px-4 font-semibold">TIME</th>
                 <th className="py-3 px-4 font-semibold">OUTLET</th>
-                <th className="py-3 px-4 font-semibold">NAME OF THE PERSON</th>
-                <th className="py-3 px-4 font-semibold">ACTION</th>
-                <th className="py-3 px-4 font-semibold text-right">AMOUNT</th>
+                <th className="py-3 px-4 font-semibold">PATRON NAME</th>
+                <th className="py-3 px-4 font-semibold">STATUS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1EFE8] text-xs">
               {filteredActivities.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-zinc-500 font-mono text-xs">
-                    No recent activities recorded for this sanctuary.
+                  <td colSpan={4} className="py-8 text-center text-zinc-500 font-mono text-xs">
+                    No reservations recorded for this sanctuary.
                   </td>
                 </tr>
               ) : (
@@ -321,20 +285,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({ onNavigate }) => {
                       {act.personName}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-block px-2.5 py-0.5 rounded font-mono text-[11px] font-medium border ${
-                          act.action === 'Dine in'
-                            ? 'bg-[#F2F6F3] text-[#1E523A] border-[#D0E2D7]'
-                            : act.action === 'Take away'
-                            ? 'bg-[#FDF7EE] text-[#7A561D] border-[#E8D9C0]'
-                            : 'bg-[#F4F2F8] text-[#4F3C75] border-[#DCD5EB]'
-                        }`}
-                      >
-                        {act.action}
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#F2F6F3] text-[#1E523A] border border-[#D0E2D7]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Reserved
                       </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-[#182520]">
-                      ₹ {act.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
                 ))

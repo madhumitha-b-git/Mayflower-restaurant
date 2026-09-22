@@ -38,7 +38,7 @@ const getVenueImage = (outletName: string): string => {
     return 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80';
   }
   if (lower.includes('ecr') || lower.includes('palavakkam') || lower.includes('seaside')) {
-    return 'https://images.unsplash.com/photo-1537047902294-62a40c20a6ae?auto=format&fit=crop&w=1200&q=80';
+    return 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80';
   }
   if (lower.includes('anna')) {
     return 'https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?auto=format&fit=crop&w=1200&q=80';

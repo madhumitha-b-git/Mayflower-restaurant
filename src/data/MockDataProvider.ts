@@ -8,7 +8,7 @@ import {
 } from './mockSeed';
 import {
   canViewReservation, canManageReservation, canViewCustomerData,
-  canViewFeedback, canSubmitFeedback, canViewFranchiseEnquiries,
+  canViewFeedback, canViewFranchiseEnquiries,
   canAssignRole, canViewStaffDirectory, canViewAuditLogs,
   canUpdateTaskStatus
 } from '../rbac/policies';
@@ -165,18 +165,14 @@ export class MockDataProvider implements DataProvider {
   }
 
   async submitFeedback(
-    actor: UserProfile,
-    payload: { outlet: string; rating: number; message: string; reservationId?: string }
+    actor: UserProfile | null,
+    payload: { outlet: string; rating: number; message: string; customerName?: string; email?: string; reservationId?: string }
   ): Promise<SeedFeedback> {
-    if (!canSubmitFeedback(actor)) {
-      throw new Error('Denied: Must be authenticated to submit feedback');
-    }
-
     const newFb: SeedFeedback = {
       id: `fb-${Date.now()}`,
-      customerId: actor.id,
-      customerName: actor.name || 'Guest',
-      email: actor.email,
+      customerId: actor?.id || 'guest',
+      customerName: payload.customerName || actor?.name || 'Guest',
+      email: payload.email || actor?.email || '',
       outlet: payload.outlet,
       rating: payload.rating,
       message: payload.message,
@@ -187,16 +183,30 @@ export class MockDataProvider implements DataProvider {
 
     this.feedback = [newFb, ...this.feedback];
     this.saveToStorage('feedback', this.feedback);
-    this.addAuditLog(actor, 'FEEDBACK_SUBMITTED', 'Feedback', newFb.id, { outlet: newFb.outlet, rating: newFb.rating });
+    if (actor) {
+      this.addAuditLog(actor, 'FEEDBACK_SUBMITTED', 'Feedback', newFb.id, { outlet: newFb.outlet, rating: newFb.rating });
+    }
     this.emit('feedback', this.feedback);
     return newFb;
+  }
+
+  async updateFeedbackStatus(actor: UserProfile, feedbackId: string, status: string): Promise<SeedFeedback> {
+    const target = this.feedback.find(f => f.id === feedbackId);
+    if (!target) throw new Error('Feedback not found');
+    target.status = status as any;
+    this.saveToStorage('feedback', this.feedback);
+    if (actor) {
+      this.addAuditLog(actor, 'FEEDBACK_UPDATED', 'Feedback', target.id, { status });
+    }
+    this.emit('feedback', this.feedback);
+    return target;
   }
 
   async getStaffMembers(actor: UserProfile): Promise<UserProfile[]> {
     if (!canViewStaffDirectory(actor)) {
       throw new Error('Denied: Insufficient permission to view staff directory');
     }
-    return this.users;
+    return this.users.filter(u => (u.role || '').toLowerCase() !== 'customer' && (u.role || '').toLowerCase() !== 'guest');
   }
 
   async assignRole(actor: UserProfile, targetUserId: string, newRole: UserRole): Promise<UserProfile> {

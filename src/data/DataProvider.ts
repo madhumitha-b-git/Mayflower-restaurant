@@ -20,7 +20,9 @@ export interface DataProvider {
   /** Fetch customer feedback filtered by policies */
   getFeedback(actor: UserProfile): Promise<SeedFeedback[]>;
   /** Submit new guest feedback */
-  submitFeedback(actor: UserProfile, payload: { outlet: string; rating: number; message: string; reservationId?: string }): Promise<SeedFeedback>;
+  submitFeedback(actor: UserProfile | null, payload: { outlet: string; rating: number; message: string; customerName?: string; email?: string; reservationId?: string }): Promise<SeedFeedback>;
+  /** Update feedback status (reviewed, resolved, flagged) */
+  updateFeedbackStatus(actor: UserProfile, feedbackId: string, status: string): Promise<SeedFeedback>;
 
   /** Fetch staff members directory filtered by policies */
   getStaffMembers(actor: UserProfile): Promise<UserProfile[]>;

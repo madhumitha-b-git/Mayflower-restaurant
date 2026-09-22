@@ -43,12 +43,26 @@ export interface LocationOutlet {
   address: string;
   hours: string;
   phone: string;
+  email?: string;
   description: string;
   image: string;
   icon: string;
   mapCoordinates: { x: number; y: number }; // Percentage for interactive map
   highlights: string[];
   gmapUrl?: string;
+  status?: 'Published' | 'Draft';
+  tablesCount?: number;
+  coversCount?: number;
+  assignedMenuCategories?: string[];
+  currentLoadTables?: number;
+  maxTables?: number;
+  capacityPercent?: number;
+  reservedWave?: string;
+  statusNote?: string;
+  posId?: string;
+  posStatus?: 'ONLINE' | 'STANDBY' | 'SYNCING';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type SeatingAreaType = 'Garden' | 'Window' | 'Main Dining' | 'Private Space';
@@ -131,13 +145,14 @@ export interface UserProfile {
   rewardPoints: number;
   tier: LoyaltyTier;
   role?: UserRole;
+  outlet?: string;
   totalVisits: number;
   joinedDate: string;
   transactions: PointTransaction[];
   reservations?: UserReservationRecord[];
 }
 
-export type TabType = 'overview' | 'staff' | 'customers' | 'outlets' | 'roles-permissions' | 'audit-log';
+export type TabType = 'overview' | 'staff' | 'customers' | 'outlets' | 'roles-permissions' | 'sops';
 
 export interface StaffMember {
   id: string;
@@ -248,3 +263,76 @@ export interface RecentActivity {
   action: 'Dine in' | 'Take away' | 'Booked a slot';
   amount: number;
 }
+
+// ── SOP & Checklist Lifecycle Types ─────────────────────────────────────────
+export type ChecklistCategory = 'Opening' | 'Closing' | 'Food Prep' | 'Hygiene' | 'Bar' | 'Store' | 'Safety' | 'Mid-Shift';
+export type ChecklistTaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
+export type ChecklistTaskStatus = 'Pending' | 'In Progress' | 'Completed' | 'Escalated' | 'Overdue';
+
+export interface TemplateTaskItem {
+  id: string;
+  title: string;
+  description?: string;
+  priority: ChecklistTaskPriority;
+  requiresPhoto?: boolean;
+}
+
+export interface ChecklistTemplate {
+  id: string;
+  title: string;
+  category: ChecklistCategory;
+  description?: string;
+  estimatedDurationMins?: number;
+  targetRole?: UserRole;
+  tasks: TemplateTaskItem[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExecutionTaskEvidence {
+  id: string;
+  storagePath: string;
+  fileType: string;
+  uploadedBy: string;
+  geoLat?: number;
+  geoLng?: number;
+  capturedAt: string;
+  remarks?: string;
+}
+
+export interface ExecutionTaskItem {
+  id: string;
+  templateTaskId?: string;
+  title: string;
+  description?: string;
+  priority: ChecklistTaskPriority;
+  requiresPhoto?: boolean;
+  status: ChecklistTaskStatus;
+  completedAt?: string;
+  completedBy?: string;
+  remarks?: string;
+  evidence?: ExecutionTaskEvidence;
+}
+
+export interface ChecklistExecution {
+  id: string;
+  templateId: string;
+  templateTitle: string;
+  category: ChecklistCategory;
+  outlet: string;
+  outletId?: string;
+  assignedUserId?: string;
+  assignedUserName?: string;
+  assignedRole: UserRole;
+  shiftDate: string;
+  status: ChecklistTaskStatus;
+  tasks: ExecutionTaskItem[];
+  assignedBy: string;
+  assignedAt: string;
+  completedAt?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewRemarks?: string;
+}
+

@@ -12,17 +12,26 @@ import {
   HeartHandshake,
   UtensilsCrossed,
   Wine,
+  Building2,
+  Calendar,
+  Star,
 } from 'lucide-react';
 import { CustomerProfile, UserProfile } from '../types';
 import { INITIAL_CUSTOMERS } from '../data/mockData';
 import { fetchAllCustomers } from '../lib/adminService';
+import { getDataProvider } from '../data/DataProvider';
+import { SeedReservation, SeedFeedback, SeedFranchiseEnquiry } from '../data/mockSeed';
 
 interface CustomersViewProps {
   user?: UserProfile;
 }
 
 export const CustomersView: React.FC<CustomersViewProps> = ({ user }) => {
+  const [subTab, setSubTab] = useState<'directory' | 'reservations' | 'feedback' | 'franchise'>('directory');
   const [customers, setCustomers] = useState<CustomerProfile[]>(INITIAL_CUSTOMERS);
+  const [reservations, setReservations] = useState<SeedReservation[]>([]);
+  const [feedbackList, setFeedbackList] = useState<SeedFeedback[]>([]);
+  const [franchiseList, setFranchiseList] = useState<SeedFranchiseEnquiry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [tierFilter, setTierFilter] = useState<'ALL' | 'GREEN' | 'GOLD' | 'BLACK'>('ALL');
   const [sortBy, setSortBy] = useState<'date' | 'spend' | 'visits'>('date');
@@ -31,7 +40,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ user }) => {
   useEffect(() => {
     let isActive = true;
 
-    const loadCustomers = async () => {
+    const loadAllData = async () => {
       try {
         const rows = await fetchAllCustomers();
         if (!isActive) return;
@@ -57,14 +66,36 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ user }) => {
           : INITIAL_CUSTOMERS;
 
         setCustomers(mapped);
+
+        if (user) {
+          try {
+            const res = await getDataProvider().getReservations(user);
+            if (res && isActive) setReservations(res);
+          } catch {}
+
+          try {
+            const fbs = await getDataProvider().getFeedback(user);
+            if (fbs && isActive) setFeedbackList(fbs);
+          } catch {}
+
+          try {
+            const fcs = await getDataProvider().getFranchiseEnquiries(user);
+            if (fcs && isActive) setFranchiseList(fcs);
+          } catch {}
+        }
       } catch {
         if (isActive) setCustomers(INITIAL_CUSTOMERS);
       }
     };
 
-    loadCustomers();
+    loadAllData();
+    const unsubRes = getDataProvider().subscribe('reservations', () => loadAllData());
+    const unsubFb = getDataProvider().subscribe('feedback', () => loadAllData());
+
     return () => {
       isActive = false;
+      unsubRes();
+      unsubFb();
     };
   }, [user]);
 
@@ -97,6 +128,56 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ user }) => {
         Registered dining guests across Mayflower loyalty ecosystem • Chennai Private Enclaves &amp; Flagships
       </div>
 
+      {/* 4 Multi-Channel Customer Data Tabs */}
+      <div className="flex items-center gap-2 border-b border-[#E8E5DD] pb-3 overflow-x-auto">
+        <button
+          onClick={() => setSubTab('directory')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-2 ${
+            subTab === 'directory'
+              ? 'bg-[#182420] text-white shadow-xs'
+              : 'bg-white text-stone-600 hover:text-black border border-[#E8E5DD]'
+          }`}
+        >
+          <Receipt className="w-3.5 h-3.5" />
+          <span>Customer Directory ({customers.length})</span>
+        </button>
+        <button
+          onClick={() => setSubTab('reservations')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-2 ${
+            subTab === 'reservations'
+              ? 'bg-[#182420] text-white shadow-xs'
+              : 'bg-white text-stone-600 hover:text-black border border-[#E8E5DD]'
+          }`}
+        >
+          <Calendar className="w-3.5 h-3.5" />
+          <span>Live Reservations ({reservations.length})</span>
+        </button>
+        <button
+          onClick={() => setSubTab('feedback')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-2 ${
+            subTab === 'feedback'
+              ? 'bg-[#182420] text-white shadow-xs'
+              : 'bg-white text-stone-600 hover:text-black border border-[#E8E5DD]'
+          }`}
+        >
+          <Star className="w-3.5 h-3.5 text-amber-500" />
+          <span>Guest Feedback ({feedbackList.length})</span>
+        </button>
+        <button
+          onClick={() => setSubTab('franchise')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition flex items-center gap-2 ${
+            subTab === 'franchise'
+              ? 'bg-[#182420] text-white shadow-xs'
+              : 'bg-white text-stone-600 hover:text-black border border-[#E8E5DD]'
+          }`}
+        >
+          <Building2 className="w-3.5 h-3.5" />
+          <span>Franchise Applications ({franchiseList.length})</span>
+        </button>
+      </div>
+
+      {subTab === 'directory' && (
+        <>
       {/* 4 Telemetry Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-purpose="customer-telemetry">
         {/* Card 1: Total Patron Spend */}
@@ -462,6 +543,208 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ user }) => {
                 Close Dossier
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      </>
+      )}
+
+      {/* SUBVIEW 2: LIVE CUSTOMER RESERVATIONS */}
+      {subTab === 'reservations' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-[#E8E5DD] p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#E8E5DD] gap-2">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#182420]">All Customer Reservations</h3>
+                <p className="text-xs text-[#5D6B64]">Direct dining reservations placed via the online booking desk and customer portal</p>
+              </div>
+              <span className="text-xs font-mono px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
+                {reservations.length} Active Records
+              </span>
+            </div>
+
+            {reservations.length === 0 ? (
+              <div className="py-16 text-center text-stone-400 text-sm">
+                No customer reservations found in database.
+              </div>
+            ) : (
+              <div className="overflow-x-auto mt-3">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-[#E8E5DD] text-[10px] uppercase font-mono text-zinc-500">
+                      <th className="py-2.5">Reference</th>
+                      <th>Guest Details</th>
+                      <th>Sanctuary Outlet</th>
+                      <th>Date &amp; Slot</th>
+                      <th>Covers</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E8E5DD]/60">
+                    {reservations.map((res) => (
+                      <tr key={res.id} className="hover:bg-[#FAF9F6] transition-colors">
+                        <td className="py-3 font-mono font-bold text-[#182420]">#{res.bookingCode}</td>
+                        <td>
+                          <div className="font-semibold text-[#182420]">{res.customerName}</div>
+                          <div className="text-[11px] text-zinc-500">{res.email || res.phone || 'Contact on file'}</div>
+                        </td>
+                        <td>
+                          <span className="inline-flex items-center gap-1 font-medium text-[#2E483A]">
+                            {res.outlet}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="font-medium text-[#182420]">{res.date}</div>
+                          <div className="text-[11px] text-zinc-500">{res.timeSlot}</div>
+                        </td>
+                        <td>
+                          <span className="font-mono text-zinc-700">{res.guests} Guests</span>
+                        </td>
+                        <td>
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            res.status === 'Confirmed' || res.status === 'Seated'
+                              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                              : res.status === 'Pending'
+                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                              : 'bg-stone-100 text-stone-600 border border-stone-200'
+                          }`}>
+                            {res.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SUBVIEW 3: LIVE GUEST FEEDBACK */}
+      {subTab === 'feedback' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-[#E8E5DD] p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#E8E5DD] gap-2">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#182420]">Guest Dining Impressions &amp; Feedback</h3>
+                <p className="text-xs text-[#5D6B64]">Direct feedback submissions from patrons across Mayflower sanctuaries</p>
+              </div>
+              <span className="text-xs font-mono px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 w-fit">
+                {feedbackList.length} Customer Reviews
+              </span>
+            </div>
+
+            {feedbackList.length === 0 ? (
+              <div className="py-16 text-center text-stone-400 text-sm">
+                No customer feedback records found in database.
+              </div>
+            ) : (
+              <div className="divide-y divide-[#E8E5DD] mt-3">
+                {feedbackList.map((fb) => (
+                  <div key={fb.id} className="py-4 space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-[#182420]">{fb.customerName}</span>
+                          {fb.email && <span className="text-xs text-zinc-400">({fb.email})</span>}
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#182420]/10 text-[#182420] font-semibold">
+                            {fb.outlet}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`w-3.5 h-3.5 ${
+                                star <= (fb.rating || 5)
+                                  ? 'text-amber-500 fill-amber-400'
+                                  : 'text-stone-300'
+                              }`}
+                            />
+                          ))}
+                          <span className="text-xs text-zinc-600 ml-1.5 font-medium">{fb.rating}/5</span>
+                          <span className="text-[10px] text-zinc-400 ml-3">{fb.createdAt}</span>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full self-start ${
+                        fb.status === 'Resolved'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200'
+                      }`}>
+                        {fb.status || 'New'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#2A3B33] leading-relaxed bg-[#FAF9F6] p-3.5 rounded-xl border border-[#E8E5DD]">
+                      "{fb.message}"
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* SUBVIEW 4: FRANCHISE APPLICATIONS */}
+      {subTab === 'franchise' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-[#E8E5DD] p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#E8E5DD] gap-2">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#182420]">Franchise Partnership Enquiries</h3>
+                <p className="text-xs text-[#5D6B64]">Submitted applications from prospective partners interested in opening a Mayflower sanctuary</p>
+              </div>
+              <span className="text-xs font-mono px-3 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 w-fit">
+                {franchiseList.length} Leads
+              </span>
+            </div>
+
+            {franchiseList.length === 0 ? (
+              <div className="py-16 text-center text-stone-400 text-sm">
+                No franchise applications found in database.
+              </div>
+            ) : (
+              <div className="overflow-x-auto mt-3">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-[#E8E5DD] text-[10px] uppercase font-mono text-zinc-500">
+                      <th className="py-2.5">Applicant</th>
+                      <th>Contact Details</th>
+                      <th>City Interested</th>
+                      <th>Investment Budget</th>
+                      <th>Experience</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E8E5DD]/60">
+                    {franchiseList.map((lead) => (
+                      <tr key={lead.id} className="hover:bg-[#FAF9F6] transition-colors">
+                        <td className="py-3 font-semibold text-[#182420]">{lead.applicantName}</td>
+                        <td>
+                          <div className="text-[#182420]">{lead.email}</div>
+                          <div className="text-[11px] text-zinc-500">{lead.phone || 'No phone'}</div>
+                        </td>
+                        <td className="font-medium text-[#2E483A]">{lead.cityInterested || 'Chennai'}</td>
+                        <td className="font-mono text-zinc-700">{lead.investmentBudget || '₹50L - 1Cr'}</td>
+                        <td>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            lead.priorExperience ? 'bg-emerald-50 text-emerald-800' : 'bg-stone-100 text-stone-600'
+                          }`}>
+                            {lead.priorExperience ? 'Yes' : 'No'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-800 border border-blue-200">
+                            {lead.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

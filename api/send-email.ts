@@ -51,9 +51,28 @@ export default async function handler(req: any, res: any) {
 
   // Google OAuth 2.0 Credentials from .env
   const googleCreds: GoogleOAuthCredentials = {
-    clientId: (process.env.Gmail_api_client_id || process.env.GMAIL_CLIENT_ID || '').trim(),
-    clientSecret: (process.env.Gmail_api_client_secret || process.env.GMAIL_CLIENT_SECRET || '').trim(),
-    refreshToken: (process.env.GMAIL_REFRESH_TOKEN || process.env.Gmail_api_refresh_token || process.env.GMAIL_TOKEN || '').trim(),
+    clientId: (
+      process.env.Gmail_api_client_id ||
+      process.env.GMAIL_API_CLIENT_ID ||
+      process.env.GMAIL_CLIENT_ID ||
+      process.env.VITE_GMAIL_CLIENT_ID ||
+      ''
+    ).trim(),
+    clientSecret: (
+      process.env.Gmail_api_client_secret ||
+      process.env.GMAIL_API_CLIENT_SECRET ||
+      process.env.GMAIL_CLIENT_SECRET ||
+      process.env.VITE_GMAIL_CLIENT_SECRET ||
+      ''
+    ).trim(),
+    refreshToken: (
+      process.env.GMAIL_REFRESH_TOKEN ||
+      process.env.Gmail_api_refresh_token ||
+      process.env.GMAIL_API_REFRESH_TOKEN ||
+      process.env.GMAIL_TOKEN ||
+      process.env.VITE_GMAIL_REFRESH_TOKEN ||
+      ''
+    ).trim(),
   };
 
   const defaultSender = (process.env.GMAIL_USER || process.env.EMAIL_FROM || 'The Mayflower <me>').trim();

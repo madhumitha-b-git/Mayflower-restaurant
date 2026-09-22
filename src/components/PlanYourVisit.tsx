@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ReservationState, RestaurantTable, DiningExperienceType, SeatingAreaType } from '../types';
 import { OUTLETS, RESTAURANT_TABLES, TIME_SLOTS } from '../data/restaurantData';
+import { useOutlets } from '../data/outletStorage';
 import { 
   Calendar, Sparkles, MapPin, Clock, ArrowRight, ArrowLeft, 
   CheckCircle2, Heart, Download, RefreshCw, X, 
@@ -51,6 +52,9 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
   onRequestSignIn,
   onBackToWebsite 
 }) => {
+  const { publishedOutlets } = useOutlets(currentUser);
+  const availableOutlets = publishedOutlets.length > 0 ? publishedOutlets : OUTLETS;
+
   // Reservation wizard state
   const [reservation, setReservation] = useState<ReservationState>({
     step: 1,
@@ -340,7 +344,7 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
                 onChange={(e) => setReservation((prev) => ({ ...prev, selectedOutlet: e.target.value }))}
                 className="bg-white px-3 py-1.5 rounded-full font-semibold text-[#1A1A1A] border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] cursor-pointer"
               >
-                {OUTLETS.map((o) => (
+                {availableOutlets.map((o) => (
                   <option key={o.id} value={o.name}>
                     {o.name}
                   </option>

@@ -8,7 +8,7 @@ import {
 import { MockDataProvider } from './MockDataProvider';
 import {
   canViewReservation, canManageReservation, canViewCustomerData,
-  canViewFeedback, canSubmitFeedback, canViewFranchiseEnquiries,
+  canViewFeedback, canViewFranchiseEnquiries,
   canAssignRole, canViewStaffDirectory, canViewAuditLogs,
   canUpdateTaskStatus
 } from '../rbac/policies';
@@ -61,43 +61,108 @@ export class SupabaseDataProvider implements DataProvider {
 
   async getReservations(actor: UserProfile): Promise<SeedReservation[]> {
     try {
-      const { data, error } = await supabase
+      // 1. Fetch user_profiles to build customer lookup & collect JSONB bookings
+      let customerProfiles: any[] = [];
+      try {
+        const { data: profilesData } = await supabase
+          .from('user_profiles')
+          .select('id, name, email, phone, reservations');
+        if (profilesData) customerProfiles = profilesData;
+      } catch {}
+
+      const customerLookup = new Map<string, { name: string; email: string; phone: string }>();
+      const profileReservations: SeedReservation[] = [];
+
+      for (const cp of customerProfiles) {
+        if (cp.id) {
+          customerLookup.set(cp.id, {
+            name: cp.name || cp.email?.split('@')[0] || 'Guest',
+            email: cp.email || '',
+            phone: cp.phone || '',
+          });
+        }
+        if (Array.isArray(cp.reservations)) {
+          for (const res of cp.reservations) {
+            if (res && (res.id || res.bookingCode)) {
+              profileReservations.push({
+                id: res.id || `res-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                bookingCode: res.bookingCode || `MF-${(res.id || '').slice(-4)}`,
+                customerId: cp.id,
+                customerName: cp.name || 'Guest',
+                email: cp.email || '',
+                phone: cp.phone || '',
+                outlet: res.outlet || 'Poes Garden Flagship',
+                date: res.date || '',
+                timeSlot: res.timeSlot || '19:00',
+                guests: res.guests || 2,
+                seatingArea: res.seatingArea || 'Main Dining',
+                status: (res.status as any) || 'Confirmed',
+                bookedAt: res.bookedAt || '',
+                specialRequests: res.specialRequests || '',
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Query reservations table
+      const { data: dbRes, error } = await supabase
         .from('reservations')
-        .select('id, booking_code, guests, reservation_date, time_slot, status, booked_at, outlets(name), user_profiles(email, name)')
+        .select('*')
+        .order('reservation_date', { ascending: false })
         .limit(100);
 
-      if (!error && data && data.length > 0) {
-        const mapped: SeedReservation[] = data.map((r: any) => ({
-          id: r.id,
-          bookingCode: r.booking_code || `MF-${r.id.slice(0, 4)}`,
-          customerId: r.customer_id || actor.id,
-          customerName: r.user_profiles?.name || r.customer_name || 'Guest',
-          email: r.user_profiles?.email || r.email || '',
-          phone: r.phone || '',
-          outlet: r.outlets?.name || r.outlet || 'Poes Garden Flagship',
-          date: r.reservation_date || '',
-          timeSlot: r.time_slot || '',
-          guests: r.guests || 2,
-          seatingArea: r.seating_area || 'Main Dining',
-          status: (r.status as any) || 'Confirmed',
-          bookedAt: r.booked_at || '',
-          specialRequests: r.special_requests || '',
-        }));
-        return mapped.filter(res => canViewReservation(actor, res));
+      const tableReservations: SeedReservation[] = [];
+      if (!error && Array.isArray(dbRes)) {
+        for (const r of dbRes) {
+          const cust = customerLookup.get(r.customer_id);
+          tableReservations.push({
+            id: r.id,
+            bookingCode: r.booking_code || `MF-${r.id.slice(0, 4)}`,
+            customerId: r.customer_id || '',
+            customerName: cust?.name || r.customer_name || r.guest_name || 'Guest',
+            email: cust?.email || r.customer_email || r.email || '',
+            phone: cust?.phone || r.customer_phone || r.phone || '',
+            outlet: r.outlet_name || r.outlet || 'Poes Garden Flagship',
+            date: r.reservation_date || r.date || '',
+            timeSlot: r.reservation_time || r.time_slot || '19:00',
+            guests: r.party_size || r.guests || 2,
+            seatingArea: r.seating_area || 'Main Dining',
+            status: ((r.status ? (r.status.charAt(0).toUpperCase() + r.status.slice(1)) : 'Confirmed') as any),
+            bookedAt: r.created_at || '',
+            specialRequests: r.special_requests || '',
+          });
+        }
       }
-    } catch {}
+
+      // 3. Deduplicate
+      const mergedMap = new Map<string, SeedReservation>();
+      for (const r of [...tableReservations, ...profileReservations]) {
+        const key = r.bookingCode || r.id;
+        if (key && !mergedMap.has(key)) {
+          mergedMap.set(key, r);
+        }
+      }
+
+      const allMerged = Array.from(mergedMap.values());
+      if (allMerged.length > 0) {
+        return allMerged.filter(res => canViewReservation(actor, res));
+      }
+    } catch (err) {
+      console.warn('SupabaseDataProvider.getReservations note:', err);
+    }
     return this.fallback.getReservations(actor);
   }
 
   async createReservation(actor: UserProfile, payload: Partial<SeedReservation>): Promise<SeedReservation> {
     try {
-      const newRes = {
+      const newRes: any = {
         customer_id: actor.id,
         booking_code: `MF-${Math.floor(1000 + Math.random() * 9000)}`,
         outlet: payload.outlet || 'Poes Garden Flagship',
         reservation_date: payload.date || new Date().toLocaleDateString('en-IN'),
-        time_slot: payload.timeSlot || '19:30',
-        guests: payload.guests || 2,
+        party_size: payload.guests || 2,
+        reservation_time: payload.timeSlot || '19:30',
         status: 'pending',
         special_requests: payload.specialRequests || '',
       };
@@ -153,30 +218,57 @@ export class SupabaseDataProvider implements DataProvider {
 
   async getFeedback(actor: UserProfile): Promise<SeedFeedback[]> {
     try {
+      let customerLookup = new Map<string, { name: string; email: string }>();
+      try {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('id, name, email');
+        if (profiles) {
+          for (const p of profiles) {
+            customerLookup.set(p.id, {
+              name: p.name || p.email?.split('@')[0] || 'Guest',
+              email: p.email || '',
+            });
+          }
+        }
+      } catch {}
+
       const { data, error } = await supabase
         .from('feedback')
-        .select('id, customer_id, rating, comment, status, created_at, outlet_id, outlets(name)')
-        .limit(50);
-      if (!error && data) {
-        const mapped: SeedFeedback[] = data.map((fb: any) => ({
-          id: fb.id,
-          customerId: fb.customer_id,
-          customerName: actor.name || 'Guest',
-          email: actor.email || '',
-          outlet: fb.outlets?.name || 'Poes Garden',
-          rating: fb.rating,
-          message: fb.comment || '',
-          status: fb.status || 'New',
-          createdAt: fb.created_at || '',
-        }));
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (!error && data && data.length > 0) {
+        const mapped: SeedFeedback[] = data.map((fb: any) => {
+          const cust = customerLookup.get(fb.customer_id);
+          const outletName = fb.outlet_name || fb.outlet || (
+            fb.outlet_id === 'a1000000-0000-0000-0000-000000000002' ? 'Anna Nagar' :
+            fb.outlet_id === 'a1000000-0000-0000-0000-000000000003' ? 'Egmore' :
+            fb.outlet_id === 'a1000000-0000-0000-0000-000000000004' ? 'Palavakkam (ECR)' :
+            'Poes Garden'
+          );
+          return {
+            id: fb.id,
+            customerId: fb.customer_id || '',
+            customerName: cust?.name || fb.customer_name || fb.guest_name || 'Guest',
+            email: cust?.email || fb.customer_email || fb.email || '',
+            outlet: outletName,
+            rating: fb.rating || 5,
+            message: fb.comments || fb.comment || '',
+            status: fb.status || 'New',
+            createdAt: fb.created_at || new Date().toISOString(),
+          };
+        });
         return mapped.filter(f => canViewFeedback(actor, f));
       }
-    } catch {}
-    return [];
+    } catch (err) {
+      console.warn('SupabaseDataProvider.getFeedback note:', err);
+    }
+    return this.fallback.getFeedback(actor);
   }
 
-  async submitFeedback(actor: UserProfile, payload: { outlet: string; rating: number; message: string; reservationId?: string }): Promise<SeedFeedback> {
-    if (!canSubmitFeedback(actor)) throw new Error('Denied: Must be authenticated to submit feedback');
+  async submitFeedback(actor: UserProfile | null, payload: { outlet: string; rating: number; message: string; customerName?: string; email?: string; reservationId?: string }): Promise<SeedFeedback> {
     try {
       const lower = (payload.outlet || '').toLowerCase();
       let outletId = 'a1000000-0000-0000-0000-000000000001';
@@ -184,35 +276,61 @@ export class SupabaseDataProvider implements DataProvider {
       else if (lower.includes('egmore')) outletId = 'a1000000-0000-0000-0000-000000000003';
       else if (lower.includes('palavakkam') || lower.includes('ecr')) outletId = 'a1000000-0000-0000-0000-000000000004';
 
-      await supabase.from('feedback').insert({
-        customer_id: actor.id,
+      const rowPayload: any = {
+        customer_id: actor?.id || null,
         outlet_id: outletId,
         rating: payload.rating,
+        comments: payload.customerName ? `[${payload.customerName}]: ${payload.message}` : payload.message,
         comment: payload.message,
         status: 'new',
-      });
-      this.emit('feedback');
+      };
+      if (payload.reservationId) rowPayload.reservation_id = payload.reservationId;
+
+      const { data, error } = await supabase.from('feedback').insert(rowPayload).select().single();
+      if (!error && data) {
+        this.emit('feedback', data);
+      }
     } catch {}
-    return this.fallback.submitFeedback(actor, payload);
+    return this.fallback.submitFeedback(actor as any, payload);
+  }
+
+  async updateFeedbackStatus(actor: UserProfile, feedbackId: string, status: string): Promise<SeedFeedback> {
+    try {
+      const { data, error } = await supabase
+        .from('feedback')
+        .update({ status: status.toLowerCase() } as any)
+        .eq('id', feedbackId)
+        .select()
+        .single();
+      if (!error && data) {
+        this.emit('feedback', data);
+      }
+    } catch {}
+    return this.fallback.updateFeedbackStatus(actor, feedbackId, status);
   }
 
   async getStaffMembers(actor: UserProfile): Promise<UserProfile[]> {
     if (!canViewStaffDirectory(actor)) throw new Error('Denied: Insufficient permission to view staff directory');
     try {
-      const { data, error } = await supabase.from('user_profiles').select('*').in('role', ['SuperAdmin', 'Owner', 'Admin', 'Manager', 'Chef', 'HR', 'Accountant']);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .in('role', ['SuperAdmin', 'Owner', 'Admin', 'Manager', 'Chef', 'HR', 'Accountant']);
       if (!error && data && data.length > 0) {
-        return data.map((u: any) => ({
-          id: u.id,
-          name: u.name || u.email?.split('@')[0] || 'Staff Member',
-          phone: u.phone || u.mobile || '',
-          email: u.email,
-          rewardPoints: u.reward_points ?? 500,
-          tier: u.tier ?? 'Green',
-          role: u.role as UserRole,
-          totalVisits: u.total_visits ?? 0,
-          joinedDate: u.joined_date || '',
-          transactions: [],
-        }));
+        return data
+          .filter((u: any) => (u.role || '').toLowerCase() !== 'customer')
+          .map((u: any) => ({
+            id: u.id,
+            name: u.name || u.email?.split('@')[0] || 'Staff Member',
+            phone: u.phone || u.mobile || '',
+            email: u.email,
+            rewardPoints: 500,
+            tier: 'Green',
+            role: u.role as UserRole,
+            totalVisits: 0,
+            joinedDate: '13 Sept 2026',
+            transactions: [],
+          }));
       }
     } catch {}
     return this.fallback.getStaffMembers(actor);

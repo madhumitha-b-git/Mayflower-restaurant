@@ -45,6 +45,16 @@ export const PublicWebsitePage: React.FC<PublicWebsitePageProps> = ({
     }
   };
 
+  React.useEffect(() => {
+    if (window.location.hash) {
+      const id = window.location.hash.replace('#', '');
+      const timer = setTimeout(() => {
+        scrollToSection(id);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   const handleOpenReservations = (outletName?: string) => {
     if (isStaff) return;
     if (outletName) {

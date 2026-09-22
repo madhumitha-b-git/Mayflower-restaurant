@@ -64,7 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
 
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          const sections = ['hero', 'about', 'gallery', 'menu', 'moment-cards', 'rewards-program', 'locations', 'contact'];
+          const sections = ['hero', 'about', 'gallery', 'menu', 'moment-cards', 'testimonials', 'locations', 'contact'];
           const scrollPosition = window.scrollY + 160;
 
           let current = 'hero';
@@ -117,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'gallery', label: 'Gallery' },
     { id: 'menu', label: 'Menu' },
     { id: 'moment-cards', label: 'Moment Cards', isSpecial: true },
-    { id: 'rewards-program', label: 'Rewards' },
+    { id: 'testimonials', label: 'Reviews' },
     { id: 'locations', label: 'Locations' },
     { id: 'contact', label: 'Get in Touch' },
   ];

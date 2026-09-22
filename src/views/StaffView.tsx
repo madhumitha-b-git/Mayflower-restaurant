@@ -35,8 +35,13 @@ export const StaffView: React.FC<StaffViewProps> = ({ user }) => {
         const staff = await fetchAllStaff();
         if (!isActive) return;
 
-        const mapped = staff.length
-          ? staff.map((member: any) => ({
+        const staffOnly = staff.filter((member: any) => {
+          const r = (member.role || '').toLowerCase();
+          return r !== 'customer' && r !== 'guest';
+        });
+
+        const mapped = staffOnly.length
+          ? staffOnly.map((member: any) => ({
               id: member.id,
               name: member.name || 'Staff Member',
               title: member.role || 'Sanctuary Personnel',
@@ -74,12 +79,32 @@ export const StaffView: React.FC<StaffViewProps> = ({ user }) => {
     outlet: 'Poes Garden',
   });
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-      setLastSyncText('JUST NOW');
-    }, 600);
+    try {
+      const staff = await fetchAllStaff();
+      const staffOnly = staff.filter((member: any) => {
+        const r = (member.role || '').toLowerCase();
+        const t = (member.title || '').toLowerCase();
+        return !r.includes('customer') && !t.includes('customer') && r !== 'guest';
+      });
+      const mapped = staffOnly.map((member: any) => ({
+        id: member.id,
+        name: member.name || 'Staff Member',
+        title: member.role || 'Sanctuary Personnel',
+        email: member.email,
+        mobile: member.mobile || '+91 00000 00000',
+        role: (member.role || 'ADMIN').toUpperCase().replace('SUPERADMIN', 'SUPER ADMIN') as StaffMember['role'],
+        department: member.department || member.role || 'Operations',
+        outlet: member.outlet_name || member.outlet || 'All Outlets',
+        empCode: member.employee_code || `EMP-${String(member.id).slice(0, 3).toUpperCase()}`,
+        status: (member.is_active ? 'ACTIVE' : 'RESTRICTED') as StaffMember['status'],
+        initials: (member.name || 'SM').split(' ').map((part: string) => part[0]).slice(0, 2).join('').toUpperCase() || 'SM',
+      }));
+      setStaffList(mapped);
+    } catch {}
+    setIsRefreshing(false);
+    setLastSyncText('JUST NOW');
   };
 
   const handleCreateStaff = (e: React.FormEvent) => {
@@ -122,6 +147,13 @@ export const StaffView: React.FC<StaffViewProps> = ({ user }) => {
   };
 
   const filteredStaff = staffList.filter((staff) => {
+    const roleLower = (staff.role || '').toLowerCase();
+    const titleLower = (staff.title || '').toLowerCase();
+    const deptLower = (staff.department || '').toLowerCase();
+    if (roleLower.includes('customer') || titleLower.includes('customer') || deptLower.includes('customer') || roleLower === 'guest') {
+      return false;
+    }
+
     const matchesSearch =
       staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.email.toLowerCase().includes(searchQuery.toLowerCase()) ||

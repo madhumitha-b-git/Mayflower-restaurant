@@ -8,7 +8,6 @@ import { StaffView } from './views/StaffView';
 import { CustomersView } from './views/CustomersView';
 import { OutletsView } from './views/OutletsView';
 import { RolesPermissionsView } from './views/RolesPermissionsView';
-import { AuditLogView } from './views/AuditLogView';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -71,10 +70,6 @@ export function App() {
 
         {activeTab === 'roles-permissions' && (
           <RolesPermissionsView onNavigate={handleNavigate} />
-        )}
-
-        {activeTab === 'audit-log' && (
-          <AuditLogView />
         )}
       </main>
 

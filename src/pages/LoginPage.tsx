@@ -482,7 +482,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                         required
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="e.g. Madan Kumar"
+                        placeholder="e.g. John Doe"
                         className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15]"
                       />
                     </div>
@@ -497,7 +497,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                         maxLength={10}
                         value={phone}
                         onChange={(e) => setPhone(cleanContactNumber(e.target.value))}
-                        placeholder="9876543210"
+                        placeholder=""
                         className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm font-mono focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15]"
                       />
                     </div>

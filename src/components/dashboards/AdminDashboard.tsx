@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Building2, CheckSquare, ClipboardList, Clock, FileText, LogOut, Plus, RefreshCw, Search, Star, Table2, Users, X, UtensilsCrossed } from 'lucide-react';
+import { AlertCircle, Building2, CheckSquare, ClipboardList, Clock, FileText, LogOut, Plus, RefreshCw, Search, Star, Users, X, UtensilsCrossed } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
 import { AdminOperationalData, createStaffMember, fetchAdminOperationalData, toggleStaffActive, updateStaffAssignment } from '../../lib/adminService';
 import { FranchiseAdminPanel } from './admin/FranchiseAdminPanel';
 import { MenuAdminPanel } from './admin/MenuAdminPanel';
+import { SOPChecklistManagement } from './shared/SOPChecklistManagement';
+import { OutletManagement } from './shared/OutletManagement';
 import { useFranchiseEnquiries } from '../../hooks/useAppData';
 import { useSafeNavigate, useSafeLocation } from '../../routes/roleRoutes';
 import { isValidEmailDomain, EMAIL_VALIDATION_MESSAGE } from '../../lib/validation';
+import { supabase } from '../../lib/supabaseClient';
 
 interface Props {
   user: UserProfile;
@@ -43,6 +46,8 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
     if (location.pathname.includes('/menu')) return 'menu';
     if (location.pathname.includes('/franchise')) return 'franchise';
     if (location.pathname.includes('/outlets')) return 'outlets';
+    if (location.pathname.includes('/sops') || location.pathname.includes('/checklists')) return 'sops';
+    if (location.pathname.includes('/feedback')) return 'feedback';
     return 'overview';
   }, [location.pathname]);
 
@@ -61,6 +66,37 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
 
   useEffect(() => {
     void load();
+
+    // Supabase Realtime channel for instant live updates
+    const channel = supabase
+      .channel('admin-dashboard-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
+        void load();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, () => {
+        void load();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback' }, () => {
+        void load();
+      })
+      .subscribe();
+
+    // Window event listeners for local actions
+    const onRefresh = () => void load();
+    window.addEventListener('mayflower_reservation_created', onRefresh);
+    window.addEventListener('mayflower_feedback_updated', onRefresh);
+
+    // Periodic live poll every 6 seconds to ensure fresh data
+    const interval = setInterval(() => {
+      void load();
+    }, 6000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      window.removeEventListener('mayflower_reservation_created', onRefresh);
+      window.removeEventListener('mayflower_feedback_updated', onRefresh);
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
@@ -69,7 +105,11 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
     return () => clearTimeout(t);
   }, [notice]);
 
-  const filteredStaff = useMemo(() => data.staff.filter(s => `${s.name} ${s.email} ${s.role} ${s.outlet_name ?? s.outlet ?? ''}`.toLowerCase().includes(query.toLowerCase()) && (role === 'all' || s.role === role) && (outlet === 'all' || s.outlet_name === outlet || s.outlet === outlet)), [data.staff, query, role, outlet]);
+  const filteredStaff = useMemo(() => data.staff
+    .filter(s => (s.role || '').toLowerCase() !== 'customer' && (s.role || '').toLowerCase() !== 'guest')
+    .filter(s => `${s.name} ${s.email} ${s.role} ${s.outlet_name ?? s.outlet ?? ''}`.toLowerCase().includes(query.toLowerCase()) && (role === 'all' || s.role === role) && (outlet === 'all' || s.outlet_name === outlet || s.outlet === outlet)),
+    [data.staff, query, role, outlet]
+  );
   const byOutlet = <T extends { outlet?: string | null }>(rows: T[]) => outlet === 'all' ? rows : rows.filter(r => r.outlet === outlet);
 
   const editAssignment = async (staff: any) => {
@@ -97,10 +137,10 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
   };
 
   const metrics = [
-    ['Active staff', data.staff.filter(s => s.is_active).length, Users],
-    ['Today’s reservations', data.reservations.filter(r => r.reservation_date === new Date().toISOString().slice(0, 10)).length, Clock],
+    ['Active staff', data.staff.filter(s => (s.role || '').toLowerCase() !== 'customer' && s.is_active).length, Users],
+    ['Total reservations', data.reservations.length, Clock],
     ['Open tasks', data.tasks.filter(t => !['Done','Completed'].includes(t.status)).length, CheckSquare],
-    ['Unresolved feedback', data.feedback.filter(f => !f.is_resolved).length, Star]
+    ['Unresolved feedback', data.feedback.filter(f => f.status !== 'Resolved' && f.status !== 'resolved' && !f.is_resolved).length, Star]
   ] as const;
 
   return (
@@ -159,6 +199,24 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
               }`}
             >
               Outlets & Capacity
+            </button>
+            <button
+              onClick={() => navigate('/admin/sops')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentSubTab === 'sops' ? 'bg-white text-[#02150c] shadow-xs' : 'text-stone-600 hover:text-black'
+              }`}
+            >
+              <ClipboardList className="w-3.5 h-3.5" />
+              SOP & Checklists
+            </button>
+            <button
+              onClick={() => navigate('/admin/feedback')}
+              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentSubTab === 'feedback' ? 'bg-white text-[#02150c] shadow-xs' : 'text-stone-600 hover:text-black'
+              }`}
+            >
+              <Star className="w-3.5 h-3.5 text-amber-500" />
+              Guest Feedback
             </button>
           </nav>
 
@@ -233,14 +291,78 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
         )}
 
         {currentSubTab === 'outlets' && (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <Panel title="Outlets and service configuration" eyebrow="Outlet administration" icon={Building2}>
-              <List rows={byOutlet(data.outlets)} empty="No outlets found." render={o => <><b>{o.name}</b><span>{o.area ?? 'No area set'} · {o.opening_time ?? '—'}–{o.closing_time ?? '—'} · {o.tables_count ?? 0} tables / {o.covers_count ?? 0} covers</span><Badge value={o.is_active ? 'Active' : 'Inactive'} /></>} />
+          <OutletManagement user={user} />
+        )}
+
+        {currentSubTab === 'sops' && (
+          <SOPChecklistManagement user={user} />
+        )}
+
+        {currentSubTab === 'feedback' && (
+          <section className="space-y-6">
+            <Panel 
+              title="Guest Feedback & Dining Sentiment" 
+              eyebrow="Voice of customer" 
+              icon={Star}
+              action={
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                    {data.feedback.length} Live Submissions
+                  </span>
+                </div>
+              }
+            >
+              {data.feedback.length === 0 ? (
+                <div className="py-12 text-center text-stone-400 text-sm">
+                  No guest feedback records found in database.
+                </div>
+              ) : (
+                <div className="divide-y divide-[#e4e2de]">
+                  {data.feedback.map((fb: any) => (
+                    <div key={fb.id} className="py-4 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-[#02150c]">
+                              {fb.customer_name || fb.guest_name || 'Guest'}
+                            </span>
+                            {fb.email && <span className="text-xs text-stone-400">({fb.email})</span>}
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#02150c]/10 text-[#02150c] font-semibold">
+                              {fb.outlet_name || fb.outlet || 'Poes Garden'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-3.5 h-3.5 ${
+                                  star <= (fb.rating || 5)
+                                    ? 'text-amber-500 fill-amber-400'
+                                    : 'text-stone-300'
+                                }`}
+                              />
+                            ))}
+                            <span className="text-xs text-stone-600 ml-1.5 font-medium">{fb.rating}/5</span>
+                            <span className="text-[10px] text-stone-400 ml-3">{date(fb.created_at)}</span>
+                          </div>
+                        </div>
+                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                          fb.status === 'resolved' || fb.is_resolved
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border border-amber-200'
+                        }`}>
+                          {fb.status || 'New'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-700 leading-relaxed bg-[#f5f3ef] p-3 rounded-xl border border-[#e4e2de]">
+                        "{fb.comments || fb.comment || 'No comment provided'}"
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Panel>
-            <Panel title="Tables and current service status" eyebrow="Table management" icon={Table2}>
-              <List rows={byOutlet(data.tables).slice(0, 8)} empty="No table records available." render={t => <><b>{t.name ?? t.table_number ?? 'Table'}</b><span>{t.outlet ?? t.outlets?.name ?? 'Unassigned'} · {t.seats ?? t.capacity ?? '—'} covers</span><Badge value={t.status ?? (t.is_active === false ? 'Inactive' : 'Available')} /></>} />
-            </Panel>
-          </div>
+          </section>
         )}
 
         {currentSubTab === 'overview' && (
@@ -257,21 +379,27 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
                 </select>
                 <OutletSelect outlets={data.outlets} value={outlet} onChange={setOutlet} />
               </div>
-              <div className="overflow-x-auto rounded-xl border border-[#e4e2de]">
-                <table className="w-full min-w-[700px] text-left text-xs">
-                  <thead className="bg-[#f5f3ef] uppercase text-[#424844]">
-                    <tr><th className="p-3">Person</th><th className="p-3">Role</th><th className="p-3">Outlet</th><th className="p-3">Status</th><th className="p-3">Controls</th></tr>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-[#e4e2de] text-[10px] uppercase text-stone-500">
+                      <th className="py-2">Staff</th>
+                      <th>Role</th>
+                      <th>Outlet</th>
+                      <th>Status</th>
+                      <th className="text-right">Action</th>
+                    </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#e4e2de]">
+                  <tbody>
                     {filteredStaff.map(s => (
-                      <tr key={s.id}>
-                        <td className="p-3"><b className="text-[#02150c]">{s.name}</b><div className="mt-0.5 text-gray-500">{s.email}</div></td>
-                        <td className="p-3">{s.role}</td>
-                        <td className="p-3">{s.outlet_name ?? s.outlet ?? 'Unassigned'}</td>
-                        <td className="p-3"><Badge value={s.is_active ? 'Active' : 'Inactive'} /></td>
-                        <td className="p-3">
-                          <button onClick={() => void editAssignment(s)} className="font-bold text-[#745b20] hover:underline">Edit assignment</button>
-                          <button onClick={async () => { const r = await toggleStaffActive(s.id, !s.is_active); setNotice(r.error ?? `${s.name} is now ${s.is_active ? 'inactive' : 'active'}.`); if (!r.error) void load(); }} className="ml-3 text-[#424844] hover:underline">{s.is_active ? 'Deactivate' : 'Activate'}</button>
+                      <tr key={s.id} className="border-b border-[#e4e2de]/60">
+                        <td className="py-2.5 font-bold text-[#02150c]">{s.name} <span className="block font-normal text-stone-500">{s.email}</span></td>
+                        <td><span className="rounded-md bg-[#edeae4] px-2 py-0.5 text-[10px] font-bold text-[#02150c]">{s.role}</span></td>
+                        <td>{s.outlet_name ?? s.outlet ?? 'Unassigned'}</td>
+                        <td><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${style(s.is_active)}`}>{s.is_active ? 'Active' : 'Inactive'}</span></td>
+                        <td className="text-right">
+                          <button onClick={() => void editAssignment(s)} className="mr-2 text-stone-500 hover:text-black">Edit</button>
+                          <button onClick={async () => { await toggleStaffActive(s.id, !s.is_active); void load(); }} className="text-stone-500 hover:text-red-700">{s.is_active ? 'Deactivate' : 'Activate'}</button>
                         </td>
                       </tr>
                     ))}
@@ -285,7 +413,7 @@ export const AdminDashboard: React.FC<Props> = ({ user, onLogout, onSwitchRole }
 
             <div className="grid gap-6 xl:grid-cols-2">
               <Panel title="Recent reservations" eyebrow="Reservation administration" icon={Clock}>
-                <List rows={byOutlet(data.reservations).slice(0, 6)} empty="No reservations available." render={r => <><b>{r.booking_code ?? 'Reservation'}</b><span>{r.outlet} · {date(r.reservation_date)} · {r.guests ?? 0} guests</span><Badge value={r.status} /></>} />
+                <List rows={byOutlet(data.reservations).slice(0, 8)} empty="No reservations available." render={r => <><b>{r.booking_code ?? r.bookingCode ?? 'Reservation'}</b><span>{r.customer_name ? `${r.customer_name} · ` : ''}{r.outlet_name ?? r.outlet ?? 'Poes Garden'} · {r.date || date(r.reservation_date)} · {r.party_size ?? r.guests ?? 0} guests</span><Badge value={r.status || 'Confirmed'} /></>} />
               </Panel>
               <Panel title="Active operational checklists" eyebrow="SOP & checklists" icon={ClipboardList}>
                 <List rows={byOutlet(data.checklists).slice(0, 6)} empty="No SOP or checklist records available." render={s => <><b>{s.title ?? s.name}</b><span>{s.outlet ?? s.outlets?.name ?? 'All outlets'} · {s.frequency ?? s.category ?? 'Operational SOP'}</span><Badge value={s.is_active === false ? 'Inactive' : 'Active'} /></>} />

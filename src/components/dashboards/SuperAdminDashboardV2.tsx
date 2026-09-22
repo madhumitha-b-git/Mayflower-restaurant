@@ -8,7 +8,7 @@ import { StaffView } from '../../views/StaffView';
 import { CustomersView } from '../../views/CustomersView';
 import { OutletsView } from '../../views/OutletsView';
 import { RolesPermissionsView } from '../../views/RolesPermissionsView';
-import { AuditLogView } from '../../views/AuditLogView';
+import { SOPChecklistManagement } from './shared/SOPChecklistManagement';
 
 interface Props {
   user: UserProfile;
@@ -22,19 +22,19 @@ export const SuperAdminDashboardV2: React.FC<Props> = ({ user, onLogout: _onLogo
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     if (location.pathname.includes('/outlets')) return 'outlets';
+    if (location.pathname.includes('/sops') || location.pathname.includes('/checklists')) return 'sops';
     if (location.pathname.includes('/users') || location.pathname.includes('/staff')) return 'staff';
     if (location.pathname.includes('/customers')) return 'customers';
     if (location.pathname.includes('/integrations') || location.pathname.includes('/roles-permissions')) return 'roles-permissions';
-    if (location.pathname.includes('/audit')) return 'audit-log';
     return 'overview';
   });
 
   useEffect(() => {
     if (location.pathname.includes('/outlets')) setActiveTab('outlets');
+    else if (location.pathname.includes('/sops') || location.pathname.includes('/checklists')) setActiveTab('sops');
     else if (location.pathname.includes('/users') || location.pathname.includes('/staff')) setActiveTab('staff');
     else if (location.pathname.includes('/customers')) setActiveTab('customers');
     else if (location.pathname.includes('/integrations') || location.pathname.includes('/roles-permissions')) setActiveTab('roles-permissions');
-    else if (location.pathname.includes('/audit')) setActiveTab('audit-log');
     else setActiveTab('overview');
   }, [location.pathname]);
 
@@ -42,11 +42,11 @@ export const SuperAdminDashboardV2: React.FC<Props> = ({ user, onLogout: _onLogo
     setActiveTab(tab);
     const routeMap: Record<TabType, string> = {
       'overview': '/superadmin/overview',
+      'sops': '/superadmin/sops',
       'outlets': '/superadmin/outlets',
       'staff': '/superadmin/users',
       'customers': '/superadmin/customers',
       'roles-permissions': '/superadmin/integrations',
-      'audit-log': '/superadmin/audit',
     };
     navigate(routeMap[tab] || '/superadmin');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -58,11 +58,11 @@ export const SuperAdminDashboardV2: React.FC<Props> = ({ user, onLogout: _onLogo
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
         {activeTab === 'overview' && <OverviewView onNavigate={handleNavigate} user={user} />}
+        {activeTab === 'sops' && <SOPChecklistManagement user={user} initialTab="compliance" />}
         {activeTab === 'staff' && <StaffView user={user} />}
         {activeTab === 'customers' && <CustomersView user={user} />}
         {activeTab === 'outlets' && <OutletsView user={user} />}
         {activeTab === 'roles-permissions' && <RolesPermissionsView onNavigate={handleNavigate} user={user} />}
-        {activeTab === 'audit-log' && <AuditLogView user={user} />}
       </main>
 
       <MasterFooter />

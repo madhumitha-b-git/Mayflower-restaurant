@@ -1,4 +1,4 @@
-export type TabType = 'overview' | 'staff' | 'customers' | 'outlets' | 'roles-permissions' | 'audit-log';
+export type TabType = 'overview' | 'staff' | 'customers' | 'outlets' | 'roles-permissions';
 
 export interface StaffMember {
   id: string;

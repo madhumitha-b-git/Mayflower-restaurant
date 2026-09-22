@@ -138,10 +138,35 @@ export const canViewFranchiseEnquiries = (user?: UserProfile | null): boolean =>
   return isSuperAdmin(user) || isOwner(user) || isAdmin(user);
 };
 
-/** Outlet Management Policy */
+/** Outlet Management Policies */
 export const canManageOutlets = (user?: UserProfile | null): boolean => {
   if (!user) return false;
-  return isSuperAdmin(user) || isAdmin(user);
+  return isSuperAdmin(user);
+};
+
+export const canCreateOutlet = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user);
+};
+
+export const canEditOutlet = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user);
+};
+
+export const canPublishOutlet = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user);
+};
+
+export const canDeleteOutlet = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user);
+};
+
+export const canViewOutlets = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user) || isOwner(user) || isAdmin(user) || isManager(user);
 };
 
 /** Audit Logs Policy */
@@ -169,8 +194,65 @@ export const canUpdateTaskStatus = (user?: UserProfile | null, task?: TaskLike):
   return false;
 };
 
+// ── SOP & Checklist RBAC Policy Matrix Functions ────────────────────────────
+
+/** Check if user can access the SOP & Checklist module (SuperAdmin, Admin, Owner, Manager, Chef) */
+export const canAccessSOPModule = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user) || isAdmin(user) || isOwner(user) || isManager(user) || isChef(user);
+};
+
+/** Template Creation Policy: Super Admin & Admin only */
+export const canCreateChecklistTemplate = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user) || isAdmin(user);
+};
+
+/** Template Edit/Delete Policy: Super Admin & Admin only */
+export const canEditOrDeleteTemplate = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user) || isAdmin(user);
+};
+
+/** Shift Assignment Policy: Super Admin, Admin, and Manager */
+export const canAssignChecklistToStaff = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user) || isAdmin(user) || isManager(user);
+};
+
+/** View All Outlets Policy: Super Admin, Admin, and Owner (View Only) */
+export const canViewAllOutletChecklists = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user) || isAdmin(user) || isOwner(user);
+};
+
+/** View Own Outlet Policy: Super Admin, Admin, Owner, Manager, Chef */
+export const canViewOwnOutletChecklists = (user?: UserProfile | null): boolean => {
+  if (!user) return false;
+  return isSuperAdmin(user) || isAdmin(user) || isOwner(user) || isManager(user) || isChef(user);
+};
+
+/** Fill in / Complete Policy: Super Admin, Admin, Manager, Chef (assigned tasks only) */
+export const canFillOrCompleteChecklist = (
+  user?: UserProfile | null,
+  execution?: { outlet?: string; assignedUserId?: string; assignedRole?: string }
+): boolean => {
+  if (!user) return false;
+  if (isSuperAdmin(user) || isAdmin(user) || isManager(user)) return true;
+  if (isChef(user)) {
+    if (!execution) return true;
+    return (
+      execution.assignedUserId === user.id ||
+      execution.assignedRole === 'Chef' ||
+      !execution.assignedUserId
+    );
+  }
+  return false;
+};
+
 /** Financial Views Policy (SuperAdmin, Owner, Admin, Manager, Accountant) */
 export const canViewFinancialReports = (user?: UserProfile | null): boolean => {
   if (!user) return false;
   return isSuperAdmin(user) || isOwner(user) || isAdmin(user) || isManager(user) || isAccountant(user);
 };
+

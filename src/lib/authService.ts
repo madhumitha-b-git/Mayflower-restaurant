@@ -555,14 +555,15 @@ export const addReservationForCurrentUser = async (
   if (outletId) {
     try {
       await supabase.from('reservations').insert({
-        customer_id: user.id,
+        customer_id: user.id && user.id.length === 36 ? user.id : null,
         outlet_id: outletId,
         booking_code: reservation.bookingCode,
-        reservation_date: reservation.date,
-        reservation_time: reservation.timeSlot || '19:00:00',
-        party_size: reservation.guests || 2,
-        status: 'confirmed',
-        special_requests: reservation.seatingArea ? `Area: ${reservation.seatingArea}` : null
+        date: reservation.date,
+        time_slot: reservation.timeSlot || '19:00',
+        guests: reservation.guests || 2,
+        status: 'Confirmed',
+        seating_area: reservation.seatingArea || 'Main Dining',
+        special_notes: reservation.seatingArea ? `Area: ${reservation.seatingArea}` : null
       });
     } catch {}
   }
@@ -585,6 +586,12 @@ export const addReservationForCurrentUser = async (
       transactions: updatedTransactions,
       reservations: updatedReservations,
     }).eq('id', user.id);
+  } catch {}
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mayflower_reservation_created', { detail: reservation }));
+    }
   } catch {}
 
   try {

@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { ActiveModalType } from '../types';
 import { OUTLETS, BEVERAGE_ITEMS } from '../data/restaurantData';
+import { useOutlets } from '../data/outletStorage';
 import { X, CheckCircle2, Star, Coffee, Send, Sparkles } from 'lucide-react';
 import { FranchiseEnquiryForm } from './FranchiseEnquiryForm';
 import { UserProfile } from '../types';
+
+import { getDataProvider } from '../data/DataProvider';
+import { supabase } from '../lib/supabaseClient';
 
 interface ModalsProps {
   activeModal: ActiveModalType;
@@ -12,8 +16,14 @@ interface ModalsProps {
 }
 
 export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClose }) => {
+  const { publishedOutlets } = useOutlets(currentUser);
+  const outletsList = publishedOutlets.length > 0 ? publishedOutlets : OUTLETS;
   const [submitted, setSubmitted] = useState(false);
   const [rating, setRating] = useState<number>(5);
+  const [feedbackOutlet, setFeedbackOutlet] = useState<string>(() => outletsList[0]?.name || 'Poes Garden Flagship');
+  const [feedbackGuestName, setFeedbackGuestName] = useState<string>(() => currentUser?.name || '');
+  const [feedbackNotes, setFeedbackNotes] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (activeModal === 'none') return null;
 
@@ -21,11 +31,51 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClos
     return <FranchiseEnquiryForm user={currentUser || null} onClose={onClose} />;
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      if (activeModal === 'feedback') {
+        const selectedOutlet = outletsList.find(o => o.name === feedbackOutlet) || outletsList[0];
+        const feedbackComment = feedbackGuestName ? `[${feedbackGuestName}]: ${feedbackNotes}` : feedbackNotes;
+        try {
+          await supabase.from('feedback').insert({
+            customer_id: currentUser?.id && currentUser.id.length === 36 ? currentUser.id : null,
+            outlet_id: selectedOutlet?.id || 'a1000000-0000-0000-0000-000000000001',
+            rating,
+            comment: feedbackComment,
+            status: 'new',
+          });
+        } catch {
+          try {
+            await supabase.from('feedback').insert({
+              customer_id: currentUser?.id && currentUser.id.length === 36 ? currentUser.id : null,
+              outlet_id: selectedOutlet?.id || 'a1000000-0000-0000-0000-000000000001',
+              rating,
+              comments: feedbackComment,
+              status: 'new',
+            });
+          } catch {}
+        }
+
+        await getDataProvider().submitFeedback(currentUser || null, {
+          outlet: feedbackOutlet || selectedOutlet?.name || 'Poes Garden Flagship',
+          rating,
+          message: feedbackNotes,
+          customerName: feedbackGuestName || currentUser?.name || 'Guest',
+          email: currentUser?.email || '',
+        });
+
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('mayflower_feedback_updated'));
+        }
+      }
+    } catch {}
+    setIsSubmitting(false);
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
+      setFeedbackNotes('');
       onClose();
     }, 3000);
   };
@@ -114,9 +164,13 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClos
                       <label className="block uppercase tracking-wider text-[#5A5A40] font-bold mb-1">
                         Sanctuary Visited *
                       </label>
-                      <select className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]">
-                        {OUTLETS.map((o) => (
-                          <option key={o.id}>{o.name}</option>
+                      <select 
+                        value={feedbackOutlet}
+                        onChange={(e) => setFeedbackOutlet(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
+                      >
+                        {outletsList.map((o) => (
+                          <option key={o.id} value={o.name}>{o.name}</option>
                         ))}
                       </select>
                     </div>
@@ -128,6 +182,8 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClos
                       <input
                         type="text"
                         required
+                        value={feedbackGuestName}
+                        onChange={(e) => setFeedbackGuestName(e.target.value)}
                         placeholder="Your name"
                         className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
                       />
@@ -141,6 +197,8 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClos
                     <textarea
                       rows={3}
                       required
+                      value={feedbackNotes}
+                      onChange={(e) => setFeedbackNotes(e.target.value)}
                       placeholder="Share details regarding your dishes, seating ambiance, or service..."
                       className="w-full px-4 py-2.5 rounded-xl bg-white border border-[#E8E4DB] focus:outline-none focus:border-[#5A5A40] text-sm text-[#1A1A1A]"
                     />
@@ -148,10 +206,13 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClos
 
                   <button
                     type="submit"
-                    className="w-full py-3.5 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-colors shadow-md flex items-center justify-center space-x-2 cursor-pointer mt-2"
+                    disabled={isSubmitting}
+                    className={`w-full py-3.5 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold transition-colors shadow-md flex items-center justify-center space-x-2 ${
+                      isSubmitting ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                    } mt-2`}
                   >
                     <Send className="w-3.5 h-3.5 text-[#E8E4DB]" />
-                    <span>Send Dining Feedback</span>
+                    <span>{isSubmitting ? 'Submitting Feedback...' : 'Send Dining Feedback'}</span>
                   </button>
                 </form>
               </div>

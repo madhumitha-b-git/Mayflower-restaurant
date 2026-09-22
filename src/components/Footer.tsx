@@ -1,5 +1,6 @@
 import { Calendar, ArrowUp, Facebook, Instagram, Linkedin } from 'lucide-react';
 import { OUTLETS } from '../data/restaurantData';
+import { useOutlets } from '../data/outletStorage';
 
 interface FooterProps {
   onNavigate: (sectionId: string) => void;
@@ -8,6 +9,9 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit, canReserveTable = true }) => {
+  const { publishedOutlets } = useOutlets();
+  const outletsList = publishedOutlets.length > 0 ? publishedOutlets : OUTLETS;
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -94,6 +98,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit, canRese
                 </button>
               </li>
               <li>
+                <button onClick={() => onNavigate('testimonials')} className="hover:text-white transition-colors cursor-pointer">
+                  Guest Reviews
+                </button>
+              </li>
+              <li>
                 <button onClick={() => onNavigate('locations')} className="hover:text-white transition-colors cursor-pointer">
                   Chennai Outlets
                 </button>
@@ -112,7 +121,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, onPlanVisit, canRese
               Sanctuaries
             </h4>
             <ul className="space-y-2 text-sm text-[#FAF7F2]/80">
-              {OUTLETS.map((o) => (
+              {outletsList.map((o) => (
                 <li key={o.id}>
                   <button
                     onClick={() => onNavigate('locations')}

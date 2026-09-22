@@ -1,57 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../../types';
 import { useSafeNavigate, useSafeLocation } from '../../routes/roleRoutes';
-import { useTasks } from '../../hooks/useAppData';
 import { getDataProvider } from '../../data/DataProvider';
+import { SeedFeedback } from '../../data/mockSeed';
+import { SOPChecklistManagement } from './shared/SOPChecklistManagement';
+import { OutletManagement } from './shared/OutletManagement';
 import {
-  Check, X, MapPin, RefreshCw, UserPlus, ChevronDown,
+  X, MapPin, RefreshCw, UserPlus, ChevronDown,
   Clock, Users, Utensils, AlertTriangle, CheckCircle2,
-  Circle, Flame, Wine, Flower2, ExternalLink,
-  ShieldCheck, XCircle, ChefHat
+  Circle, Flame, Wine, Flower2, Star
 } from 'lucide-react';
-
-// ── Mock chef geo-tagged evidence for demonstration ──────────────────────────
-const MOCK_GEO_EVIDENCE = [
-  {
-    id: 'geo-1',
-    chefName: 'Executive Chef',
-    taskTitle: 'Walk-in Cooler Temp Log (Target < 3.5°C)',
-    taskCategory: 'HACCP',
-    capturedAt: new Date(Date.now() - 12 * 60 * 1000).toISOString(),
-    geoLat: 13.0359,
-    geoLng: 80.2473,
-    geoAccuracy: 8,
-    storagePath: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=400&q=80',
-    remarks: 'Temp checked at 3.2°C — within safe range',
-    status: 'pending' as 'pending' | 'approved' | 'rejected',
-  },
-  {
-    id: 'geo-2',
-    chefName: 'Sous Chef Vikram',
-    taskTitle: 'Line Sanitizer Bucket PPM Check',
-    taskCategory: 'Sanitation',
-    capturedAt: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
-    geoLat: 13.0358,
-    geoLng: 80.2474,
-    geoAccuracy: 12,
-    storagePath: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?auto=format&fit=crop&w=400&q=80',
-    remarks: 'PPM at 200 — sanitizer renewed at 11:30 AM',
-    status: 'pending' as 'pending' | 'approved' | 'rejected',
-  },
-  {
-    id: 'geo-3',
-    chefName: 'Pastry Chef Meenakshi',
-    taskTitle: 'Waste Disposal & Bin Sanitization',
-    taskCategory: 'Sanitation',
-    capturedAt: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    geoLat: 13.036,
-    geoLng: 80.2471,
-    geoAccuracy: 5,
-    storagePath: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=400&q=80',
-    remarks: '',
-    status: 'approved' as 'pending' | 'approved' | 'rejected',
-  },
-];
 
 interface Props {
   user: UserProfile;
@@ -87,179 +45,40 @@ const MOCK_RESERVATIONS: ReservationItem[] = [
     tags: ['No Shellfish', 'Vintage Champagne Pairing', 'Anniversary Protocol'],
   },
   {
-    id: 'res-2', ref: '#MF-8103', guestName: 'Ananya & Siddharth Rao',
-    badge: 'Online Booking', badgeColor: 'bg-stone-100 text-stone-600',
-    guests: 2, time: 'Today, 1:30 PM', area: 'Verandah Garden',
-    status: 'confirmed', statusLabel: 'Confirmed',
-    table: 'Table V2', pref: 'Locked by Captain Vignesh',
-    tags: ['Vegetarian Degustation', 'No Alliums (Jain)'],
+    id: 'res-2', ref: '#MF-8812', guestName: 'Ananya & Vikram Sundaram',
+    badge: 'Anniversary Dinner', badgeColor: 'bg-rose-100 text-rose-800',
+    guests: 2, time: 'Today, 2:00 PM', area: 'Palavakkam Seaside Deck',
+    status: 'confirmed', statusLabel: 'Table Assigned',
+    table: 'Table S2', pref: 'Sunset Terrace Bay',
+    tags: ['Table S2 Reserved', 'Complimentary Champagne Flutes'],
   },
   {
-    id: 'res-3', ref: '#MF-6691', guestName: 'Sundaram Estate Group',
-    badge: 'Corporate Host', badgeColor: 'bg-emerald-100 text-emerald-800',
-    guests: 6, time: 'Seated 12:28 PM (44m)', area: 'Table G3 — Glasshouse',
-    status: 'seated', statusLabel: 'Seated · Active',
-    table: 'Course 3 of 7', pref: 'KOT #4029',
-    courseInfo: 'Pan-seared Bay of Bengal Black Bass, Curry Leaf Emulsion',
+    id: 'res-3', ref: '#MF-9104', guestName: 'Chef Sanjay Narayanan & Party',
+    badge: 'Culinary Industry Guest', badgeColor: 'bg-emerald-100 text-emerald-800',
+    guests: 6, time: 'Today, 12:45 PM', area: 'Anna Nagar Glass Pavilion',
+    status: 'seated', statusLabel: 'Seated & Dining',
+    table: 'Table P1', pref: 'Full 7-Course Dim Sum Pairing',
+    tags: ['Course 3 Served', 'Wine Pairing Active'],
   },
   {
-    id: 'res-4', ref: '#MF-8114', guestName: 'Meera Chandran',
-    badge: 'Club 100', badgeColor: 'bg-violet-100 text-violet-800',
-    guests: 2, time: 'Today, 2:00 PM', area: 'Conservatory Window',
-    status: 'confirmed', statusLabel: 'Confirmed',
-    table: 'Table C1', pref: 'Bespoke Floral Placed',
-    note: 'Birthday celebration; prefers chilled sparkling water on arrival',
+    id: 'res-4', ref: '#MF-6641', guestName: 'Meera Krishnan (High Tea)',
+    badge: 'High Tea Experience', badgeColor: 'bg-purple-100 text-purple-800',
+    guests: 3, time: 'Today, 3:30 PM', area: 'Egmore Verandah Suite',
+    status: 'pending', statusLabel: 'Awaiting Table Allotment',
+    table: 'Unassigned', pref: 'Afternoon Tiered Presentation',
+    tags: ['Vegetarian Dim Sum Tier', 'Rare Jasmine Pearls Tea'],
   },
 ];
 
-const STATUS_STYLES: Record<string, string> = {
-  pending:   'bg-amber-50 text-amber-800 border border-amber-200',
-  confirmed: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
-  seated:    'bg-[#1E3932]/10 text-[#1E3932] border border-[#1E3932]/20',
-  completed: 'bg-stone-100 text-stone-600 border border-stone-200',
-  cancelled: 'bg-rose-50 text-rose-700 border border-rose-200',
+const STATUS_STYLES: Record<ReservationItem['status'], string> = {
+  pending: 'bg-amber-100 text-amber-800',
+  confirmed: 'bg-blue-100 text-blue-800',
+  seated: 'bg-emerald-100 text-emerald-800',
+  completed: 'bg-stone-100 text-stone-600',
+  cancelled: 'bg-rose-100 text-rose-700',
 };
 
-type QueueTab = 'all' | 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'evidence';
-
-// ── Geo Evidence Card Component ───────────────────────────────────────────────
-interface GeoEvidenceCardProps {
-  evidence: {
-    id: string;
-    chefName: string;
-    taskTitle: string;
-    taskCategory: string;
-    capturedAt: string;
-    geoLat: number;
-    geoLng: number;
-    geoAccuracy: number;
-    storagePath: string;
-    remarks: string;
-    status: 'pending' | 'approved' | 'rejected';
-  };
-  onApprove: () => void;
-  onReject: () => void;
-}
-
-const GeoEvidenceCard: React.FC<GeoEvidenceCardProps> = ({ evidence, onApprove, onReject }) => {
-  const [localStatus, setLocalStatus] = React.useState(evidence.status);
-  const capturedDate = new Date(evidence.capturedAt);
-  const minutesAgo = Math.round((Date.now() - capturedDate.getTime()) / 60000);
-
-  const handleApprove = () => { setLocalStatus('approved'); onApprove(); };
-  const handleReject  = () => { setLocalStatus('rejected'); onReject(); };
-
-  return (
-    <div className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all ${
-      localStatus === 'approved' ? 'border-emerald-200' :
-      localStatus === 'rejected' ? 'border-rose-200 opacity-70' :
-      'border-[#E8E2D5]'
-    }`}>
-      <div className="flex flex-col md:flex-row">
-        {/* Photo */}
-        <div className="md:w-48 h-48 md:h-auto shrink-0 relative overflow-hidden">
-          <img src={evidence.storagePath} alt="Chef geo evidence" className="w-full h-full object-cover" />
-          {/* Geo badge overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/70 to-transparent">
-            <div className="flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-              <span className="text-[10px] font-mono text-emerald-300 truncate">
-                {evidence.geoLat.toFixed(4)}, {evidence.geoLng.toFixed(4)}
-              </span>
-            </div>
-          </div>
-          {localStatus !== 'pending' && (
-            <div className={`absolute top-2 left-2 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold ${
-              localStatus === 'approved' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
-            }`}>
-              {localStatus === 'approved' ? <ShieldCheck className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-              {localStatus === 'approved' ? 'Approved' : 'Rejected'}
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 p-4 flex flex-col justify-between gap-3">
-          <div>
-            {/* Header */}
-            <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${
-                    evidence.taskCategory === 'HACCP' ? 'bg-red-50 text-red-700 border-red-200' :
-                    evidence.taskCategory === 'Sanitation' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}>{evidence.taskCategory}</span>
-                  <span className="text-[11px] text-stone-400">{minutesAgo}m ago</span>
-                </div>
-                <h3 className="text-sm font-semibold text-[#1E3932]">{evidence.taskTitle}</h3>
-              </div>
-            </div>
-
-            {/* Chef + Timestamp */}
-            <div className="flex flex-wrap gap-4 text-[11px] text-stone-500 mb-2">
-              <div className="flex items-center gap-1.5">
-                <ChefHat className="w-3.5 h-3.5 text-[#745b20]" />
-                <span className="font-semibold text-stone-600">{evidence.chefName}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>{capturedDate.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-              </div>
-            </div>
-
-            {/* Geo Coordinates — Clickable */}
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
-              <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider mb-0.5">GPS Location Verified</p>
-                <a
-                  href={`https://maps.google.com/?q=${evidence.geoLat},${evidence.geoLng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] font-mono text-emerald-700 hover:text-emerald-900 hover:underline flex items-center gap-1 group cursor-pointer"
-                >
-                  {evidence.geoLat.toFixed(6)}, {evidence.geoLng.toFixed(6)}
-                  <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </a>
-              </div>
-              <span className="text-[10px] text-emerald-600 font-medium shrink-0">±{evidence.geoAccuracy}m</span>
-            </div>
-
-            {evidence.remarks && (
-              <p className="mt-2 text-[12px] text-stone-500 italic">"{evidence.remarks}"</p>
-            )}
-          </div>
-
-          {/* Actions */}
-          {localStatus === 'pending' ? (
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={handleApprove}
-                className="flex-1 flex items-center justify-center gap-1.5 h-9 bg-[#1E3932] text-white text-xs font-semibold rounded-lg hover:bg-[#152d26] transition-colors cursor-pointer"
-              >
-                <Check className="w-3.5 h-3.5" /> Approve Evidence
-              </button>
-              <button
-                onClick={handleReject}
-                className="flex-1 flex items-center justify-center gap-1.5 h-9 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg hover:bg-rose-100 transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" /> Reject & Escalate
-              </button>
-            </div>
-          ) : (
-            <div className={`flex items-center gap-2 text-xs font-semibold py-2 rounded-lg px-3 ${
-              localStatus === 'approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-            }`}>
-              {localStatus === 'approved' ? <ShieldCheck className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-              {localStatus === 'approved' ? 'Evidence Approved — Logged to Compliance Report' : 'Rejected — Chef Notified for Re-submission'}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+type QueueTab = 'all' | 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'evidence' | 'outlets' | 'feedback';
 
 export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, onSwitchRole }) => {
   const navigate = useSafeNavigate();
@@ -268,6 +87,7 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
   const [selectedSanctuary, setSelectedSanctuary] = useState('poes');
   const [activeQueueTab, setActiveQueueTab] = useState<QueueTab>('all');
   const [reservations, setReservations] = useState<ReservationItem[]>(MOCK_RESERVATIONS);
+  const [feedbackList, setFeedbackList] = useState<SeedFeedback[]>([]);
   const [inspectTable, setInspectTable] = useState<string | null>(null);
   const [isWalkinOpen, setIsWalkinOpen] = useState(false);
   const [walkinName, setWalkinName] = useState('');
@@ -276,14 +96,15 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
   const [walkinNotes, setWalkinNotes] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [taskEvidence, setTaskEvidence] = useState<Record<string, any[]>>({});
-
-  const { data: kitchenTasks, refetch: refetchTasks } = useTasks(user);
 
   // Sync route with active views
   useEffect(() => {
     if (location.pathname.includes('/sops') || location.pathname.includes('/evidence')) {
       setActiveQueueTab('evidence');
+    } else if (location.pathname.includes('/outlets')) {
+      setActiveQueueTab('outlets');
+    } else if (location.pathname.includes('/feedback')) {
+      setActiveQueueTab('feedback');
     } else if (location.pathname.includes('/tables')) {
       const el = document.getElementById('zone-allocation-map');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -315,26 +136,22 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
             tags: r.specialRequests ? [r.specialRequests] : [],
           })));
         }
+
+        const fbs = await getDataProvider().getFeedback(user);
+        if (fbs) {
+          setFeedbackList(fbs);
+        }
       } catch {}
     };
-    fetchLive();
-  }, [user]);
 
-  useEffect(() => {
-    if (activeQueueTab !== 'evidence' || !kitchenTasks) return;
-    const load = async () => {
-      const provider = getDataProvider();
-      const ev: Record<string, any[]> = {};
-      for (const task of kitchenTasks) {
-        if (task.status === 'Completed' || task.status === 'Escalated') {
-          const e = await provider.getTaskEvidence(user, task.id);
-          if (e?.length) ev[task.id] = e;
-        }
-      }
-      setTaskEvidence(ev);
+    fetchLive();
+    const unsubRes = getDataProvider().subscribe('reservations', () => fetchLive());
+    const unsubFb = getDataProvider().subscribe('feedback', () => fetchLive());
+    return () => {
+      unsubRes();
+      unsubFb();
     };
-    load();
-  }, [activeQueueTab, kitchenTasks]);
+  }, [user]);
 
   const handleApprove = async (id: string) => {
     try {
@@ -377,22 +194,6 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
       await getDataProvider().updateReservationStatus(user, id, 'Cancelled');
       setReservations(prev => prev.filter(r => r.id !== id));
       showToast('Reservation declined.');
-    } catch (e: any) { showToast(e.message); }
-  };
-
-  const handleApproveEvidence = async (taskId: string) => {
-    try {
-      await getDataProvider().updateTaskStatus(user, taskId, 'Completed', 'Approved by Manager');
-      showToast('Evidence approved.');
-      refetchTasks();
-    } catch (e: any) { showToast(e.message); }
-  };
-
-  const handleRejectEvidence = async (taskId: string) => {
-    try {
-      await getDataProvider().updateTaskStatus(user, taskId, 'Escalated', 'Evidence rejected by Manager');
-      showToast('Task escalated for review.');
-      refetchTasks();
     } catch (e: any) { showToast(e.message); }
   };
 
@@ -581,12 +382,12 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
                 </div>
               </div>
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                {(['all','pending','confirmed','seated','completed','cancelled','evidence'] as QueueTab[]).map(tab => (
+                {(['all','pending','confirmed','seated','completed','cancelled','evidence','outlets','feedback'] as QueueTab[]).map(tab => (
                   <button
                     key={tab}
                     onClick={() => {
                       setActiveQueueTab(tab);
-                      navigate(tab === 'evidence' ? '/manager/sops' : '/manager/reservations');
+                      navigate(tab === 'evidence' ? '/manager/sops' : tab === 'outlets' ? '/manager/outlets' : tab === 'feedback' ? '/manager/feedback' : '/manager/reservations');
                     }}
                     className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold uppercase tracking-wide whitespace-nowrap transition-colors cursor-pointer ${
                       activeQueueTab === tab
@@ -601,98 +402,94 @@ export const ManagerDashboard: React.FC<Props> = ({ user, onLogout: _onLogout, o
                     {tab === 'completed' && `Completed (${counts.completed})`}
                     {tab === 'cancelled' && `No-Show (${counts.cancelled})`}
                     {tab === 'evidence' && 'Evidence Review'}
+                    {tab === 'outlets' && 'Branches & Outlets'}
+                    {tab === 'feedback' && `Guest Feedback (${feedbackList.length})`}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Evidence Tab — Chef Geo-Tagged Monitor */}
+            {/* Outlets View for Manager (View-Only) */}
+            {activeQueueTab === 'outlets' && (
+              <div className="space-y-4">
+                <OutletManagement user={user} />
+              </div>
+            )}
+
+            {/* Evidence & SOPs Tab — Chef Geo-Tagged Monitor & Shift Lifecycle */}
             {activeQueueTab === 'evidence' && (
               <div className="space-y-4">
-                {/* Section Banner */}
-                <div className="bg-[#1E3932] text-white rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <ChefHat className="w-4 h-4 text-[#C5A880]" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#C5A880]">Chef Evidence Monitor</span>
-                    </div>
-                    <h3 className="text-sm font-semibold">Geo-Tagged SOP Photo Evidence</h3>
-                    <p className="text-[11px] text-stone-300 mt-0.5">Review kitchen SOP compliance with GPS-verified photo proof from your chef team</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-xs text-emerald-300 font-medium">Live · Auto-refreshing</span>
-                  </div>
-                </div>
+                <SOPChecklistManagement user={user} initialTab="executions" />
+              </div>
+            )}
 
-                {/* Live DB evidence (if any) */}
-                {kitchenTasks?.filter(t => taskEvidence[t.id]).map(task => (
-                  <div key={task.id} className="bg-white rounded-xl border border-[#E8E2D5] shadow-sm p-4">
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#C5A880] bg-[#FAF7F2] border border-[#E8E2D5] px-2 py-0.5 rounded">{task.category}</span>
-                          <span className="text-[10px] text-stone-400">from Kitchen SOP database</span>
-                        </div>
-                        <h3 className="text-sm font-semibold text-[#1E3932]">{task.title}</h3>
-                        <div className="flex flex-wrap gap-3 mt-3">
-                          {taskEvidence[task.id].map(ev => (
-                            <div key={ev.id} className="bg-[#F7F5F0] rounded-xl border border-[#E8E2D5] overflow-hidden">
-                              <div className="w-full h-36 overflow-hidden">
-                                <img src={ev.storagePath} alt="Evidence" className="w-full h-full object-cover" />
+            {/* Guest Feedback Tab */}
+            {activeQueueTab === 'feedback' && (
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl border border-[#E8E2D5] p-5 shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b border-[#E8E2D5]">
+                    <div>
+                      <h3 className="font-serif text-lg font-bold text-[#1E3932]">Live Guest Dining Feedback</h3>
+                      <p className="text-xs text-stone-500">Real-time impressions submitted by patrons across sanitised touchpoints</p>
+                    </div>
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                      {feedbackList.length} Verified Submissions
+                    </span>
+                  </div>
+
+                  {feedbackList.length === 0 ? (
+                    <div className="py-12 text-center text-stone-400 text-sm">
+                      No feedback submitted yet for this outlet.
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#E8E2D5] mt-2">
+                      {feedbackList.map((fb) => (
+                        <div key={fb.id} className="py-4 space-y-2">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm text-[#1E3932]">{fb.customerName}</span>
+                                {fb.email && <span className="text-xs text-stone-400">({fb.email})</span>}
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#1E3932]/10 text-[#1E3932] font-semibold">
+                                  {fb.outlet}
+                                </span>
                               </div>
-                              <div className="p-3 space-y-1.5">
-                                <p className="text-xs font-semibold text-[#1E3932] flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-stone-400" />
-                                  {new Date(ev.capturedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                </p>
-                                {ev.geoLat && ev.geoLng && (
-                                  <a
-                                    href={`https://maps.google.com/?q=${ev.geoLat},${ev.geoLng}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-[11px] text-emerald-700 font-mono hover:text-emerald-900 group cursor-pointer"
-                                  >
-                                    <MapPin className="w-3 h-3 shrink-0" />
-                                    {ev.geoLat.toFixed(4)}, {ev.geoLng.toFixed(4)}
-                                    <ExternalLink className="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                  </a>
-                                )}
+                              <div className="flex items-center gap-1 mt-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`w-3.5 h-3.5 ${
+                                      star <= (fb.rating || 5)
+                                        ? 'text-amber-500 fill-amber-400'
+                                        : 'text-stone-300'
+                                    }`}
+                                  />
+                                ))}
+                                <span className="text-xs text-stone-500 ml-1.5">{fb.rating}/5</span>
+                                <span className="text-[10px] text-stone-400 ml-3">{fb.createdAt}</span>
                               </div>
                             </div>
-                          ))}
+                            <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                              fb.status === 'Resolved' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                              fb.status === 'Reviewed' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
+                              'bg-amber-50 text-amber-800 border border-amber-200'
+                            }`}>
+                              {fb.status || 'New'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-stone-700 leading-relaxed bg-[#FAF9F5] p-3 rounded-lg border border-[#E8E2D5]">
+                            "{fb.message}"
+                          </p>
                         </div>
-                      </div>
-                      <div className="flex md:flex-col gap-2 shrink-0">
-                        <button onClick={() => handleApproveEvidence(task.id)} className="flex items-center gap-1.5 px-4 py-2 bg-[#1E3932] text-white text-xs font-semibold rounded-lg hover:bg-[#152d26] transition-colors cursor-pointer">
-                          <Check className="w-3.5 h-3.5" /> Approve
-                        </button>
-                        <button onClick={() => handleRejectEvidence(task.id)} className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold rounded-lg hover:bg-rose-100 transition-colors cursor-pointer">
-                          <X className="w-3.5 h-3.5" /> Reject
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
-
-                {/* Mock geo-evidence cards (always shown for demo) */}
-                {MOCK_GEO_EVIDENCE.map(ev => (
-                  <GeoEvidenceCard
-                    key={ev.id}
-                    evidence={ev}
-                    onApprove={() => showToast(`Evidence approved: ${ev.taskTitle}`)}
-                    onReject={() => showToast(`Evidence rejected & escalated: ${ev.taskTitle}`)}
-                  />
-                ))}
-
-                {!kitchenTasks?.filter(t => taskEvidence[t.id]).length && MOCK_GEO_EVIDENCE.length === 0 && (
-                  <div className="bg-white rounded-xl border border-[#E8E2D5] p-8 text-center text-stone-400 text-sm">No evidence pending review.</div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
             {/* Reservation Cards */}
-            {activeQueueTab !== 'evidence' && (
+            {activeQueueTab !== 'evidence' && activeQueueTab !== 'outlets' && activeQueueTab !== 'feedback' && (
               <div className="space-y-3">
                 {filtered.length === 0 && (
                   <div className="bg-white rounded-xl border border-[#E8E2D5] p-8 text-center text-stone-400 text-sm">No reservations in this category.</div>

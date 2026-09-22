@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { OUTLETS } from '../data/restaurantData';
+import { OUTLETS as DEFAULT_OUTLETS } from '../data/restaurantData';
+import { useOutlets } from '../data/outletStorage';
 import { MapPin, Clock, Phone, Navigation, Calendar, CheckCircle2, Compass, ExternalLink } from 'lucide-react';
 
 interface OutletsSectionProps {
@@ -8,9 +9,11 @@ interface OutletsSectionProps {
 }
 
 export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet, canReserveTable = true }) => {
-  const [selectedOutletId, setSelectedOutletId] = useState<string>(OUTLETS[0].id);
+  const { publishedOutlets } = useOutlets();
+  const outletsList = publishedOutlets && publishedOutlets.length > 0 ? publishedOutlets : DEFAULT_OUTLETS;
+  const [selectedOutletId, setSelectedOutletId] = useState<string>(outletsList[0]?.id || DEFAULT_OUTLETS[0].id);
 
-  const activeOutlet = OUTLETS.find((o) => o.id === selectedOutletId) || OUTLETS[0];
+  const activeOutlet = outletsList.find((o) => o.id === selectedOutletId) || outletsList[0] || DEFAULT_OUTLETS[0];
 
   return (
     <section id="locations" className="py-24 bg-[#FAF7F2] text-[#1A1A1A] relative border-b border-[#E8E4DB]">
@@ -71,7 +74,7 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet,
               </div>
 
               {/* 4 Sanctuary Interactive Pins */}
-              {OUTLETS.map((outlet) => {
+              {outletsList.map((outlet) => {
                 const isActive = outlet.id === selectedOutletId;
                 const gmapLink = outlet.gmapUrl || `https://maps.google.com/?q=Mayflower+${encodeURIComponent(outlet.name)}+Chennai`;
                 return (
@@ -123,7 +126,7 @@ export const OutletsSection: React.FC<OutletsSectionProps> = ({ onReserveOutlet,
 
             {/* Quick switcher buttons */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-              {OUTLETS.map((outlet) => (
+              {outletsList.map((outlet) => (
                 <button
                   key={outlet.id}
                   onClick={() => setSelectedOutletId(outlet.id)}
