@@ -5,11 +5,12 @@ logs
 # Node modules
 node_modules/
 dist/
-
-# Env
-.env.local
-node_modules/
-dist/
 .vite/
+
+# Local env secrets — never commit these
 .env
 .env.local
+.env.production
+
+# Keep example file tracked
+!.env.example

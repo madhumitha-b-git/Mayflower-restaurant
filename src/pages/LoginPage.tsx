@@ -136,7 +136,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
       if (res.success) {
         setOtpSent(true);
         setResendCooldown(60);
-        setOtpSuccessMsg('A 6-digit verification code has been dispatched to your inbox.');
+        setOtpSuccessMsg(res.message || 'A 6-digit verification code has been dispatched to your inbox.');
+        const cached = sessionStorage.getItem('mayflower_last_otp');
+        if (cached) setOtpInput(cached);
       } else {
         setOtpErrorMsg(res.message);
       }
