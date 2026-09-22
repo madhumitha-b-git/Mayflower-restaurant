@@ -1,5 +1,4 @@
 import { supabase } from './supabaseClient';
-import { SUPABASE_URL } from './adminClient';
 import { UserRole } from '../types';
 
 export interface StaffMember {
@@ -150,11 +149,42 @@ export const fetchAdminOperationalData = async (): Promise<AdminOperationalData>
 };
 
 export const createStaffMember = async (payload: CreateStaffPayload): Promise<{ error?: string }> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return { error: 'Not authenticated.' };
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/create-staff-user`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(payload) });
-  const json = await response.json();
-  return response.ok ? {} : { error: json.error ?? 'Failed to create staff.' };
+  try {
+    const newStaffId = `staff-${Date.now()}`;
+    const { hashPassword } = await import('./passwordUtils');
+    const pwdHash = await hashPassword(payload.password);
+    const normalizedEmail = payload.email.trim().toLowerCase();
+
+    await supabase.from('users').insert({
+      id: newStaffId,
+      name: payload.name,
+      email: normalizedEmail,
+      password_hash: pwdHash,
+      role: payload.role,
+      phone: payload.mobile,
+      is_active: true,
+    });
+
+    await supabase.from('user_profiles').insert({
+      id: newStaffId,
+      name: payload.name,
+      email: normalizedEmail,
+      phone: payload.mobile,
+      role: payload.role,
+      outlet: payload.outlet,
+      is_active: true,
+      reward_points: 500,
+      tier: 'Sanctuary VIP',
+      total_visits: 0,
+      joined_date: new Date().toLocaleDateString('en-IN'),
+      transactions: [],
+      reservations: [],
+    });
+
+    return {};
+  } catch (err: any) {
+    return { error: err?.message || 'Failed to create staff member.' };
+  }
 };
 export const toggleStaffActive = async (id: string, is_active: boolean): Promise<{ error?: string }> => { const { error } = await supabase.from('user_profiles').update({ is_active }).eq('id', id); return error ? { error: error.message } : {}; };
 export const updateStaffAssignment = async (id: string, role: UserRole, outlet: string | null): Promise<{ error?: string }> => { const { error } = await supabase.from('user_profiles').update({ role, outlet }).eq('id', id); return error ? { error: error.message } : {}; };

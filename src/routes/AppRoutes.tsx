@@ -1,9 +1,11 @@
-﻿import React from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { UserProfile } from '../types';
 import { PublicWebsitePage } from '../pages/PublicWebsitePage';
 import { PublicReservationsPage } from '../pages/PublicReservationsPage';
 import { LoginPage } from '../pages/LoginPage';
+import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
+import { VerifyEmailPage } from '../pages/VerifyEmailPage';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RoleDashboard } from '../components/dashboards/RoleDashboard';
 
@@ -53,6 +55,27 @@ export const AppRoutes: React.FC<AppRoutesProps> = ({
         path="/login"
         element={
           <LoginPage
+            currentUser={currentUser}
+            onLoginSuccess={onLoginSuccess}
+          />
+        }
+      />
+
+      {/* Password Recovery Routes */}
+      <Route
+        path="/forgot-password"
+        element={<ForgotPasswordPage />}
+      />
+      <Route
+        path="/reset-password"
+        element={<ForgotPasswordPage />}
+      />
+
+      {/* Dedicated Email Verification Route */}
+      <Route
+        path="/verify-email"
+        element={
+          <VerifyEmailPage
             currentUser={currentUser}
             onLoginSuccess={onLoginSuccess}
           />

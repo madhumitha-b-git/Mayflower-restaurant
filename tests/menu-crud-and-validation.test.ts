@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { isValidEmailDomain, EMAIL_VALIDATION_MESSAGE } from '../src/lib/validation';
+import {
+  isValidEmailDomain,
+  EMAIL_VALIDATION_MESSAGE,
+  cleanContactNumber,
+  isValidContactNumber,
+  PHONE_VALIDATION_MESSAGE,
+} from '../src/lib/validation';
 import {
   getStoredMenuItems,
   addMenuItem,
@@ -9,26 +15,53 @@ import {
 } from '../src/data/menuStorage';
 import { MENU_ITEMS } from '../src/data/restaurantData';
 
-describe('Strict Email Domain Validation', () => {
-  it('accepts valid @gmail.com and @outlook.com email formats', () => {
+describe('Universal Email Domain Validation', () => {
+  it('accepts all valid email providers including Gmail, Outlook, Yahoo, Hotmail, and institutional domains', () => {
     expect(isValidEmailDomain('test.user@gmail.com')).toBe(true);
     expect(isValidEmailDomain('chef_john@outlook.com')).toBe(true);
+    expect(isValidEmailDomain('patron@yahoo.com')).toBe(true);
+    expect(isValidEmailDomain('patron@hotmail.com')).toBe(true);
+    expect(isValidEmailDomain('madankumar.s.2023.aids@ritchennai.edu.in')).toBe(true);
     expect(isValidEmailDomain('Madan.Kumar+work@gmail.com')).toBe(true);
-    expect(isValidEmailDomain('contact@outlook.com')).toBe(true);
+    expect(isValidEmailDomain('contact@restaurant-domain.org')).toBe(true);
   });
 
-  it('rejects invalid or unsupported domains such as abs@g.com, yahoo, or corporate domains', () => {
-    expect(isValidEmailDomain('abs@g.com')).toBe(false);
-    expect(isValidEmailDomain('user@yahoo.com')).toBe(false);
-    expect(isValidEmailDomain('user@example.com')).toBe(false);
-    expect(isValidEmailDomain('user@mayflower.in')).toBe(false);
+  it('rejects malformed email strings or empty inputs', () => {
     expect(isValidEmailDomain('invalid-email')).toBe(false);
     expect(isValidEmailDomain('')).toBe(false);
     expect(isValidEmailDomain('@gmail.com')).toBe(false);
+    expect(isValidEmailDomain('no-at-sign.com')).toBe(false);
+    expect(isValidEmailDomain('user@')).toBe(false);
   });
 
   it('provides a descriptive validation message', () => {
-    expect(EMAIL_VALIDATION_MESSAGE).toContain('@gmail.com or @outlook.com');
+    expect(EMAIL_VALIDATION_MESSAGE).toBe('Please enter a valid email address.');
+  });
+});
+
+describe('10-Digit Contact Number Validation & Sanitization', () => {
+  it('sanitizes input to remove non-digit characters and truncate to 10 digits', () => {
+    expect(cleanContactNumber('+91 98400-12345')).toBe('9198400123');
+    expect(cleanContactNumber('98765-abc-43210')).toBe('9876543210');
+    expect(cleanContactNumber('98765 43210 ext 99')).toBe('9876543210');
+    expect(cleanContactNumber('(987) 654-3210')).toBe('9876543210');
+    expect(cleanContactNumber('letters-only')).toBe('');
+  });
+
+  it('validates exactly 10 numeric digits', () => {
+    expect(isValidContactNumber('9876543210')).toBe(true);
+    expect(isValidContactNumber('9840012345')).toBe(true);
+    expect(isValidContactNumber('1234567890')).toBe(true);
+
+    expect(isValidContactNumber('987654321')).toBe(false); // 9 digits
+    expect(isValidContactNumber('98765432100')).toBe(false); // 11 digits
+    expect(isValidContactNumber('+919876543210')).toBe(false); // special characters
+    expect(isValidContactNumber('987654321a')).toBe(false); // alphabet
+    expect(isValidContactNumber('')).toBe(false); // empty
+  });
+
+  it('provides appropriate validation error message', () => {
+    expect(PHONE_VALIDATION_MESSAGE).toBe('Please enter a valid 10-digit mobile number (numbers only).');
   });
 });
 

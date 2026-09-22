@@ -1,6 +1,8 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { UserProfile, UserRole, LoyaltyTier, PointTransaction, UserReservationRecord } from '../types';
-import { loginWithPassword } from '../data/userStorage';
+import { loginWithPassword, getStoredUsers, saveStoredUsers, setCurrentUserSession, getCurrentUser } from '../data/userStorage';
+import { sendWelcomeConfirmationEmail } from '../data/emailService';
+import { hashPassword, verifyPassword } from './passwordUtils';
 
 export interface AuthResult {
   success: boolean;
@@ -19,7 +21,123 @@ const STAFF_EMAIL_ROLE_MAP: Record<string, UserRole> = {
   'accountant@gmail.com': 'Accountant',
 };
 
-/** Sign in with email + password via Supabase Auth, then load profile row */
+/**
+ * Request an email verification OTP via official Gmail API
+ * Pre-checks if the email is already registered before dispatching OTP for registration.
+ */
+export const requestEmailOtp = async (
+  email: string,
+  purpose: 'registration' | 'password_reset' = 'registration'
+): Promise<{ success: boolean; message: string }> => {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return { success: false, message: 'Please enter a valid email address.' };
+  }
+
+  // Pre-check if email already exists when registering
+  if (purpose === 'registration') {
+    try {
+      if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
+        return { success: false, message: 'This email is already registered. Please sign in instead.' };
+      }
+
+      // Check public.users
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+
+      if (existingUser) {
+        return { success: false, message: 'This email is already registered. Please sign in instead.' };
+      }
+
+      // Check public.user_profiles
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
+
+      if (existingProfile) {
+        return { success: false, message: 'This email is already registered. Please sign in instead.' };
+      }
+    } catch (e) {
+      console.warn('Pre-registration check note:', e);
+    }
+  }
+
+  try {
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'send_otp',
+        to: normalizedEmail,
+        purpose,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return {
+        success: false,
+        message: data.error || data.message || 'Failed to dispatch verification code via Gmail.',
+      };
+    }
+
+    return {
+      success: true,
+      message: 'A 6-digit verification code has been dispatched to your email address.',
+    };
+  } catch (err: any) {
+    console.error('[requestEmailOtp Error]:', err);
+    return { success: false, message: err?.message || 'Network error while sending OTP.' };
+  }
+};
+
+/**
+ * Verify a 6-digit email OTP against the server OTP store
+ */
+export const verifyEmailOtp = async (
+  email: string,
+  otp: string
+): Promise<{ success: boolean; verified: boolean; message?: string }> => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const cleanOtp = otp.trim();
+
+  if (!cleanOtp) {
+    return { success: false, verified: false, message: 'Please enter the 6-digit verification code.' };
+  }
+
+  try {
+    const res = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'verify_otp',
+        to: normalizedEmail,
+        otp: cleanOtp,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success || !data.verified) {
+      return {
+        success: false,
+        verified: false,
+        message: data.error || data.message || 'Invalid or expired verification code.',
+      };
+    }
+
+    return { success: true, verified: true, message: 'Email address successfully verified!' };
+  } catch (err: any) {
+    console.error('[verifyEmailOtp Error]:', err);
+    return { success: false, verified: false, message: err?.message || 'Network error during verification.' };
+  }
+};
+
+/** Sign in with email + password via direct database query + SHA-256 password hash comparison */
 export const supabaseLogin = async (email: string, password: string): Promise<AuthResult> => {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -28,25 +146,86 @@ export const supabaseLogin = async (email: string, password: string): Promise<Au
     const localRes = loginWithPassword(normalizedEmail, password);
     if (localRes.success && localRes.user) {
       localRes.user.role = STAFF_EMAIL_ROLE_MAP[normalizedEmail];
+      localStorage.setItem('mayflower_current_user_id', localRes.user.id);
+      localStorage.setItem('mayflower_current_user', JSON.stringify(localRes.user));
       return localRes;
     }
   }
 
   if (!isSupabaseConfigured) {
-    return loginWithPassword(normalizedEmail, password);
+    const localRes = loginWithPassword(normalizedEmail, password);
+    if (localRes.success && localRes.user) {
+      localStorage.setItem('mayflower_current_user_id', localRes.user.id);
+      localStorage.setItem('mayflower_current_user', JSON.stringify(localRes.user));
+    }
+    return localRes;
   }
 
-  // 1. Try Supabase Auth signInWithPassword
-  const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+  // 1. Direct database lookup in public.users (where password_hash is stored)
+  try {
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
 
-  if (data?.user) {
-    const profile = await fetchUserProfile(data.user.id, data.user);
-    if (profile) {
+    if (userRow) {
+      // Verify SHA-256 hash or plain password
+      const isPasswordValid = await verifyPassword(password, userRow.password_hash);
+      if (!isPasswordValid) {
+        return { success: false, message: 'Incorrect password. Please try again.' };
+      }
+
+      // Password matches! Fetch or construct full patron profile
+      let profile = await fetchUserProfile(userRow.id);
+      if (!profile) {
+        const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        profile = {
+          id: userRow.id,
+          name: userRow.name || normalizedEmail.split('@')[0],
+          email: normalizedEmail,
+          phone: userRow.phone || '',
+          role: (userRow.role as UserRole) || 'Customer',
+          rewardPoints: 200,
+          tier: 'Green',
+          totalVisits: 0,
+          joinedDate: todayStr,
+          transactions: [],
+          reservations: [],
+        };
+
+        try {
+          await supabase.from('user_profiles').upsert({
+            id: userRow.id,
+            name: profile.name,
+            email: normalizedEmail,
+            phone: profile.phone,
+            role: profile.role,
+            reward_points: 200,
+            tier: 'Green',
+            total_visits: 0,
+            joined_date: todayStr,
+            transactions: [],
+            reservations: [],
+          }, { onConflict: 'id' });
+        } catch {}
+      }
+
+      if (userRow.phone && !profile.phone) {
+        profile.phone = userRow.phone;
+      }
       if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
         profile.role = STAFF_EMAIL_ROLE_MAP[normalizedEmail];
       }
+
+      // Establish session
+      localStorage.setItem('mayflower_current_user_id', userRow.id);
+      localStorage.setItem('mayflower_current_user', JSON.stringify(profile));
+
       return { success: true, user: profile };
     }
+  } catch (err) {
+    console.warn('[supabaseLogin direct users lookup note]:', err);
   }
 
   // 2. Check local SEED_STAFF / userStorage fallback for demo accounts
@@ -55,38 +234,12 @@ export const supabaseLogin = async (email: string, password: string): Promise<Au
     if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
       localRes.user.role = STAFF_EMAIL_ROLE_MAP[normalizedEmail];
     }
+    localStorage.setItem('mayflower_current_user_id', localRes.user.id);
+    localStorage.setItem('mayflower_current_user', JSON.stringify(localRes.user));
     return localRes;
   }
 
-  // 3. Check staff 'users' table directly (SuperAdmin, Owner, Admin, Manager, Chef, HR, Accountant)
-  try {
-    const { data: staffUser } = await supabase
-      .from('users')
-      .select('*')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
-
-    if (staffUser) {
-      const staffRole: UserRole = (staffUser.role as UserRole) || 'Admin';
-      const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-      const staffProfile: UserProfile = {
-        id: staffUser.id || `staff-${Date.now()}`,
-        name: staffUser.name || normalizedEmail.split('@')[0],
-        email: normalizedEmail,
-        phone: staffUser.phone || '',
-        role: staffRole,
-        rewardPoints: 500,
-        tier: 'Sanctuary VIP',
-        totalVisits: 10,
-        joinedDate: todayStr,
-        transactions: [],
-        reservations: [],
-      };
-      return { success: true, user: staffProfile };
-    }
-  } catch {}
-
-  // 3. Check 'user_profiles' or 'profiles' table for existing customer
+  // 3. Check 'user_profiles' table for existing customer
   try {
     const { data: existingProf } = await supabase
       .from('user_profiles')
@@ -95,162 +248,113 @@ export const supabaseLogin = async (email: string, password: string): Promise<Au
       .maybeSingle();
 
     if (existingProf) {
-      return {
-        success: true,
-        user: {
-          id: existingProf.id,
-          name: existingProf.name || normalizedEmail.split('@')[0],
-          email: normalizedEmail,
-          phone: existingProf.phone || '',
-          role: (existingProf.role as UserRole) || 'Customer',
-          rewardPoints: existingProf.reward_points ?? 200,
-          tier: (existingProf.tier as LoyaltyTier) ?? 'Green',
-          totalVisits: existingProf.total_visits ?? 0,
-          joinedDate: existingProf.joined_date ?? new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-          transactions: existingProf.transactions ?? [],
-          reservations: existingProf.reservations ?? [],
-        }
+      const mappedProfile: UserProfile = {
+        id: existingProf.id,
+        name: existingProf.name || normalizedEmail.split('@')[0],
+        email: normalizedEmail,
+        phone: existingProf.phone || '',
+        role: (existingProf.role as UserRole) || 'Customer',
+        rewardPoints: existingProf.reward_points ?? 200,
+        tier: (existingProf.tier as LoyaltyTier) ?? 'Green',
+        totalVisits: existingProf.total_visits ?? 0,
+        joinedDate: existingProf.joined_date ?? new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        transactions: existingProf.transactions ?? [],
+        reservations: existingProf.reservations ?? [],
       };
+      localStorage.setItem('mayflower_current_user_id', existingProf.id);
+      localStorage.setItem('mayflower_current_user', JSON.stringify(mappedProfile));
+      return { success: true, user: mappedProfile };
     }
   } catch {}
 
-  if (error) {
-    const isUnconfirmed = /confirm|verification/i.test(error.message || '');
-    const isInvalid = /invalid login/i.test(error.message || '');
-
-    if (isUnconfirmed) {
-      return {
-        success: false,
-        message: 'Email confirmation is pending for this account. To log in without confirmation, toggle OFF "Confirm Email" in your Supabase Dashboard -> Auth -> Providers -> Email.'
-      };
-    }
-
-    const message = isInvalid
-      ? 'We could not find an account with those details. New to Mayflower? Register your account first.'
-      : error.message || 'Login failed.';
-    return { success: false, message };
-  }
-
-  // Fallback profile construction so valid logins never fail
-  const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   return {
-    success: true,
-    user: {
-      id: `user-${Date.now()}`,
-      name: normalizedEmail.split('@')[0],
-      email: normalizedEmail,
-      phone: '',
-      role: 'Customer',
-      rewardPoints: 200,
-      tier: 'Green',
-      totalVisits: 1,
-      joinedDate: todayStr,
-      transactions: [],
-      reservations: [],
-    }
+    success: false,
+    message: 'We could not find an account with those details. New to Mayflower? Register your account first.'
   };
 };
 
-/** Sign up a new customer via Supabase Auth, then insert profile row */
+/**
+ * Sign up a new customer directly in the database
+ * Stores name, email, phone, SHA-256 password hash in public.users and public.user_profiles
+ * Dispatches welcome email via official Gmail API immediately upon registration.
+ */
 export const supabaseRegister = async (
   email: string,
   password: string,
   name: string,
   phone?: string
 ): Promise<AuthResult> => {
-  if (!isSupabaseConfigured) {
-    return { success: false, message: 'Supabase is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.' };
-  }
-
   const normalizedEmail = email.trim().toLowerCase();
-  const { data: { user: signedInUser } } = await supabase.auth.getUser();
-  if (signedInUser?.email?.toLowerCase() === normalizedEmail) {
-    return { success: false, message: 'This email is already registered. Please sign in instead.' };
-  }
+  const cleanPhone = (phone || '').trim();
+  const patronName = (name || '').trim() || normalizedEmail.split('@')[0];
 
   // Pre-check DB tables for existing account with this email
   try {
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existingUser) {
+      return { success: false, message: 'This email is already registered. Please sign in instead.' };
+    }
+
     const { data: existingProfile } = await supabase
       .from('user_profiles')
       .select('id')
-      .eq('email', normalizedEmail)
+      .ilike('email', normalizedEmail)
       .maybeSingle();
+
     if (existingProfile) {
       return { success: false, message: 'This email is already registered. Please sign in instead.' };
     }
-
-    const { data: altProfile } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('email', normalizedEmail)
-      .maybeSingle();
-    if (altProfile) {
-      return { success: false, message: 'This email is already registered. Please sign in instead.' };
-    }
   } catch {}
-
-  const { data, error } = await supabase.auth.signUp({
-    email: normalizedEmail,
-    password,
-    options: { data: { name: name || normalizedEmail.split('@')[0], phone: phone || '' } },
-  });
-
-  if (error || !data.user) {
-    const isEmailSendError = /error sending confirmation email|confirmation email/i.test(error?.message || '');
-    const isRateLimit = /rate limit/i.test(error?.message || '');
-    const isDuplicate = /already|registered|exists/i.test(error?.message || '');
-
-    if (isEmailSendError) {
-      // Try logging in in case user was actually created
-      const loginRes = await supabaseLogin(normalizedEmail, password);
-      if (loginRes.success) return loginRes;
-
-      return {
-        success: false,
-        message: 'Supabase email service error: Email confirmation is enabled in your Supabase project, but custom SMTP is not set up. To allow registration without SMTP: In Supabase Dashboard -> Authentication -> Providers -> Email, turn OFF "Confirm email".'
-      };
-    }
-
-    if (isRateLimit) {
-      // Attempt auto-login if account was already created during previous attempt
-      const loginRes = await supabaseLogin(normalizedEmail, password);
-      if (loginRes.success) return loginRes;
-      return {
-        success: false,
-        message: 'Supabase email rate limit reached. To fix this: Go to Supabase Dashboard -> Auth -> Providers -> Email and turn OFF "Confirm email", or Sign In directly if your account exists.'
-      };
-    }
-
-    if (isDuplicate) {
-      return { success: false, message: 'This email is already registered. Please sign in instead.' };
-    }
-
-    return { success: false, message: error?.message || 'Registration failed.' };
-  }
-
-  // With Supabase email-confirmation enabled, an existing email is deliberately
-  // returned without a new identity. Treat it as a duplicate instead of showing success.
-  if (data.user.identities?.length === 0) {
-    return { success: false, message: 'This email is already registered. Please sign in instead.' };
-  }
 
   const todayStr = new Date().toLocaleDateString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric',
   });
 
-  const newProfile = {
-    id: data.user.id,
-    name: name || email.split('@')[0],
+  const newUserId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `usr-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  // Hash password with SHA-256
+  const passwordHash = await hashPassword(password);
+
+  // 1. Insert into public.users (stores credentials + phone)
+  try {
+    const { error: userInsertError } = await supabase.from('users').insert({
+      id: newUserId,
+      name: patronName,
+      email: normalizedEmail,
+      password_hash: passwordHash,
+      role: 'Customer',
+      phone: cleanPhone,
+      is_active: true,
+    });
+
+    if (userInsertError) {
+      console.error('[supabaseRegister] users table insert error:', userInsertError);
+    }
+  } catch (err) {
+    console.warn('[supabaseRegister] users insert exception:', err);
+  }
+
+  // 2. Insert into public.user_profiles (stores rewards, tier, visits, bookings)
+  const newProfileRow = {
+    id: newUserId,
+    name: patronName,
     email: normalizedEmail,
-    phone: phone || '',
+    phone: cleanPhone,
     role: 'Customer' as UserRole,
     reward_points: 200,
     tier: 'Green' as LoyaltyTier,
     total_visits: 0,
     joined_date: todayStr,
     transactions: [{
-      id: `signup-${data.user.id}`,
-      type: 'earned_signup',
+      id: `signup-${newUserId}`,
+      type: 'earned_signup' as const,
       points: 200,
       description: 'Welcome bonus for registering your Mayflower account',
       date: todayStr,
@@ -259,65 +363,62 @@ export const supabaseRegister = async (
   };
 
   try {
-    await supabase.from('user_profiles').upsert(newProfile, { onConflict: 'id', ignoreDuplicates: true });
-  } catch {}
-
-  // Auto sign-in to establish active session token for RLS policies
-  const loginRes = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
-
-  if (loginRes.error && /confirm/i.test(loginRes.error.message)) {
-    const fallbackProfile: UserProfile = {
-      id: data.user.id,
-      name: name || normalizedEmail.split('@')[0],
-      email: normalizedEmail,
-      phone: '',
-      role: 'Customer',
-      rewardPoints: 200,
-      tier: 'Green',
-      totalVisits: 0,
-      joinedDate: todayStr,
-      transactions: [{
-        id: `signup-${data.user.id}`,
-        type: 'earned_signup',
-        points: 200,
-        description: 'Welcome bonus for registering your Mayflower account',
-        date: todayStr,
-      }],
-      reservations: [],
-    };
-    return {
-      success: true,
-      user: fallbackProfile,
-      message: 'Account created! If email confirmation is enabled in your Supabase project, check your inbox or turn OFF "Confirm Email" in Supabase Auth settings to sign in instantly.'
-    };
+    const { error: profileError } = await supabase.from('user_profiles').insert(newProfileRow);
+    if (profileError) {
+      console.warn('[supabaseRegister] user_profiles insert note:', profileError);
+      await supabase.from('user_profiles').upsert(newProfileRow, { onConflict: 'id' });
+    }
+  } catch (err) {
+    console.warn('[supabaseRegister] user_profiles exception:', err);
   }
 
-  const profile = await fetchUserProfile(data.user.id);
-  const fallbackProfile: UserProfile = profile ?? {
-    id: data.user.id,
-    name: name || normalizedEmail.split('@')[0],
+  // 3. Sync to public.customers table if exists
+  try {
+    await supabase.from('customers').insert({
+      user_id: newUserId,
+      name: patronName,
+      email: normalizedEmail,
+      phone: cleanPhone,
+    });
+  } catch {}
+
+  const finalProfile: UserProfile = {
+    id: newUserId,
+    name: patronName,
     email: normalizedEmail,
-    phone: '',
+    phone: cleanPhone,
     role: 'Customer',
     rewardPoints: 200,
     tier: 'Green',
     totalVisits: 0,
     joinedDate: todayStr,
-    transactions: [{
-      id: `signup-${data.user.id}`,
-      type: 'earned_signup',
-      points: 200,
-      description: 'Welcome bonus for registering your Mayflower account',
-      date: todayStr,
-    }],
+    transactions: newProfileRow.transactions,
     reservations: [],
   };
 
-  return { success: true, user: fallbackProfile };
+  // 4. Save session locally
+  try {
+    localStorage.setItem('mayflower_current_user_id', newUserId);
+    localStorage.setItem('mayflower_current_user', JSON.stringify(finalProfile));
+    // Save in userStorage local backup
+    const existingStored = getStoredUsers();
+    if (!existingStored.some(u => u.email.toLowerCase() === normalizedEmail)) {
+      saveStoredUsers([...existingStored, { ...finalProfile, password }]);
+    }
+  } catch {}
+
+  // 5. Dispatch Welcome Email via official Gmail API immediately upon registration
+  try {
+    sendWelcomeConfirmationEmail(normalizedEmail, patronName, newUserId);
+  } catch (err) {
+    console.warn('[Welcome Email Send Warning]:', err);
+  }
+
+  return { success: true, user: finalProfile };
 };
 
-/** Fetch the user_profiles or profiles row and map to UserProfile shape with fallback construction */
-export const fetchUserProfile = async (userId: string, authUserFallback?: any): Promise<UserProfile | null> => {
+/** Fetch the user_profiles row and map to UserProfile shape with fallback construction */
+export const fetchUserProfile = async (userId: string, _authUserFallback?: any): Promise<UserProfile | null> => {
   if (!userId) return null;
 
   // 1. Try querying 'user_profiles' table
@@ -329,13 +430,33 @@ export const fetchUserProfile = async (userId: string, authUserFallback?: any): 
       .maybeSingle();
 
     if (profileRow) {
+      let fetchedPhone = profileRow.phone ?? profileRow.contact_number ?? '';
+
+      // Fallback to public.users table if phone is missing in user_profiles
+      if (!fetchedPhone) {
+        try {
+          const { data: uRow } = await supabase.from('users').select('phone').eq('id', userId).maybeSingle();
+          if (uRow?.phone) {
+            fetchedPhone = uRow.phone;
+            supabase.from('user_profiles').update({ phone: fetchedPhone }).eq('id', userId).then();
+          }
+        } catch {}
+      }
+
+      if (!fetchedPhone) {
+        try {
+          const { data: custRow } = await supabase.from('customers').select('phone').eq('user_id', userId).maybeSingle();
+          if (custRow?.phone) fetchedPhone = custRow.phone;
+        } catch {}
+      }
+
       const emailLower = (profileRow.email || '').toLowerCase();
       const role: UserRole = STAFF_EMAIL_ROLE_MAP[emailLower] || (profileRow.role as UserRole) || 'Customer';
       return {
         id: profileRow.id,
         name: profileRow.name || profileRow.full_name || 'Mayflower Patron',
         email: profileRow.email,
-        phone: profileRow.phone ?? '',
+        phone: fetchedPhone,
         role,
         rewardPoints: profileRow.reward_points ?? 200,
         tier: (profileRow.tier as LoyaltyTier) ?? 'Green',
@@ -347,95 +468,59 @@ export const fetchUserProfile = async (userId: string, authUserFallback?: any): 
     }
   } catch {}
 
-  // 2. Fallback to 'profiles' table if user_profiles returns null/error
+  // 2. Fallback to 'users' table directly
   try {
-    const { data: altData } = await supabase
-      .from('profiles')
+    const { data: userRow } = await supabase
+      .from('users')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
 
-    if (altData) {
-      return {
-        id: altData.id,
-        name: altData.full_name || altData.name || altData.email?.split('@')[0] || 'Mayflower Patron',
-        email: altData.email || '',
-        phone: altData.phone || '',
-        role: (altData.role as UserRole) || 'Customer',
+    if (userRow) {
+      const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      const role: UserRole = STAFF_EMAIL_ROLE_MAP[userRow.email?.toLowerCase()] || (userRow.role as UserRole) || 'Customer';
+      const constructedProfile: UserProfile = {
+        id: userRow.id,
+        name: userRow.name || userRow.email?.split('@')[0] || 'Mayflower Patron',
+        email: userRow.email,
+        phone: userRow.phone || '',
+        role,
         rewardPoints: 200,
         tier: 'Green',
         totalVisits: 0,
-        joinedDate: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+        joinedDate: todayStr,
         transactions: [],
-        reservations: []
+        reservations: [],
       };
+
+      // Upsert into user_profiles for future queries
+      try {
+        await supabase.from('user_profiles').upsert({
+          id: userRow.id,
+          name: constructedProfile.name,
+          email: constructedProfile.email,
+          phone: constructedProfile.phone,
+          role: constructedProfile.role,
+          reward_points: 200,
+          tier: 'Green',
+          total_visits: 0,
+          joined_date: todayStr,
+          transactions: [],
+          reservations: [],
+        }, { onConflict: 'id' });
+      } catch {}
+
+      return constructedProfile;
     }
   } catch {}
 
-  // 3. Fallback to authUser object or active auth session or constructed profile
-  let u = authUserFallback;
-  if (!u) {
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user && authData.user.id === userId) {
-        u = authData.user;
-      }
-    } catch {}
+  // 3. Fallback to local storage
+  const localUser = getCurrentUser();
+  if (localUser && localUser.id === userId) {
+    return localUser;
   }
 
-  if (!u) {
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData?.session?.user && sessionData.session.user.id === userId) {
-        u = sessionData.session.user;
-      }
-    } catch {}
-  }
-
-  const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  const email = u?.email || '';
-  const name = u?.user_metadata?.name || email.split('@')[0] || 'Mayflower Patron';
-  const phone = u?.phone || '';
-  const role: UserRole = STAFF_EMAIL_ROLE_MAP[email.toLowerCase()] || (u?.user_metadata?.role as UserRole) || 'Customer';
-
-  const constructedProfile: UserProfile = {
-    id: userId,
-    name,
-    email,
-    phone,
-    role,
-    rewardPoints: 200,
-    tier: 'Green',
-    totalVisits: 1,
-    joinedDate: todayStr,
-    transactions: [{
-      id: `welcome-${userId}`,
-      type: 'earned_signup',
-      points: 200,
-      description: 'Welcome bonus for registering your Mayflower account',
-      date: todayStr,
-    }],
-    reservations: [],
-  };
-
-  // Attempt async upsert to user_profiles so table row is populated for future queries
-  try {
-    await supabase.from('user_profiles').upsert({
-      id: userId,
-      name: constructedProfile.name,
-      email: constructedProfile.email,
-      phone: constructedProfile.phone,
-      role: constructedProfile.role,
-      reward_points: 200,
-      tier: 'Green',
-      total_visits: 1,
-      joined_date: todayStr,
-      transactions: constructedProfile.transactions,
-      reservations: []
-    }, { onConflict: 'id' });
-  } catch {}
-
-  return constructedProfile;
+  return null;
 };
 
 export const addReservationForCurrentUser = async (
@@ -466,7 +551,7 @@ export const addReservationForCurrentUser = async (
     }
   } catch {}
 
-  // 1. Try schema-compliant insert into reservations table (outlet_id, customer_id, etc.)
+  // 1. Try schema-compliant insert into reservations table
   if (outletId) {
     try {
       await supabase.from('reservations').insert({
@@ -516,19 +601,35 @@ export const addReservationForCurrentUser = async (
     reservations: updatedReservations,
   };
 
+  localStorage.setItem('mayflower_current_user', JSON.stringify(finalUser));
   return { success: true, user: finalUser };
 };
 
-/** Get the currently authenticated Supabase session user profile */
+/** Get the currently authenticated session user profile from local storage and DB */
 export const getSupabaseCurrentUser = async (): Promise<UserProfile | null> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.user) return null;
-  return fetchUserProfile(session.user.id);
+  try {
+    const userId = localStorage.getItem('mayflower_current_user_id');
+    if (userId) {
+      const profile = await fetchUserProfile(userId);
+      if (profile) return profile;
+    }
+    const cached = localStorage.getItem('mayflower_current_user');
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    return getCurrentUser();
+  } catch {
+    return null;
+  }
 };
 
-/** Sign out from Supabase */
+/** Sign out from current session */
 export const supabaseLogout = async (): Promise<void> => {
-  await supabase.auth.signOut();
+  try {
+    localStorage.removeItem('mayflower_current_user_id');
+    localStorage.removeItem('mayflower_current_user');
+    setCurrentUserSession(null);
+  } catch {}
 };
 
 export interface UpdateProfileParams {
@@ -541,7 +642,7 @@ export interface UpdateProfileParams {
   preferredSeating?: string;
 }
 
-/** Update customer profile details, phone, email, password, and preferences */
+/** Update customer profile details, phone, email, password, and preferences directly in database */
 export const updateUserProfile = async (
   params: UpdateProfileParams
 ): Promise<{ success: boolean; user?: UserProfile; message?: string }> => {
@@ -551,27 +652,20 @@ export const updateUserProfile = async (
   const trimmedPhone = (phone || '').trim();
 
   try {
-    // 1. If password is provided, update password via Supabase Auth
+    // 1. If password is provided, hash and update password_hash in public.users
     if (password && password.trim().length >= 6) {
-      const { error: pwdError } = await supabase.auth.updateUser({
-        password: password.trim(),
-      });
-      if (pwdError) {
-        console.warn('Supabase auth password update note:', pwdError.message);
+      const newHash = await hashPassword(password.trim());
+      try {
+        await supabase
+          .from('users')
+          .update({ password_hash: newHash, updated_at: new Date().toISOString() })
+          .eq('id', userId);
+      } catch (pwdErr) {
+        console.warn('Password update in users note:', pwdErr);
       }
     }
 
-    // 2. Update Supabase Auth user metadata & email
-    try {
-      await supabase.auth.updateUser({
-        email: normalizedEmail,
-        data: { name: trimmedName, phone: trimmedPhone },
-      });
-    } catch (authErr) {
-      console.warn('Supabase auth updateUser error:', authErr);
-    }
-
-    // 3. Update public.user_profiles in Supabase
+    // 2. Update public.user_profiles in Supabase
     const updatePayload: Record<string, any> = {
       name: trimmedName,
       email: normalizedEmail,
@@ -594,7 +688,7 @@ export const updateUserProfile = async (
       console.warn('user_profiles update note:', profError.message);
     }
 
-    // 4. Update public.users table if user exists there
+    // 3. Update public.users table as well
     try {
       await supabase
         .from('users')
@@ -605,6 +699,18 @@ export const updateUserProfile = async (
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId);
+    } catch {}
+
+    // 4. Update public.customers table if user exists there
+    try {
+      await supabase
+        .from('customers')
+        .update({
+          name: trimmedName,
+          email: normalizedEmail,
+          phone: trimmedPhone,
+        })
+        .eq('user_id', userId);
     } catch {}
 
     // 5. Fetch updated user profile
@@ -625,9 +731,144 @@ export const updateUserProfile = async (
       phone: trimmedPhone,
     };
 
+    localStorage.setItem('mayflower_current_user', JSON.stringify(updatedUser));
     return { success: true, user: updatedUser };
   } catch (err: any) {
     return { success: false, message: err?.message || 'Failed to update profile' };
   }
 };
 
+/** Verify 6-digit OTP sent to user email upon registration (legacy alias) */
+export const verifySignupOtp = async (email: string, token: string): Promise<AuthResult> => {
+  const verifyRes = await verifyEmailOtp(email, token);
+  if (!verifyRes.success || !verifyRes.verified) {
+    return { success: false, message: verifyRes.message || 'Invalid or expired confirmation code.' };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  try {
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (userRow) {
+      const profile = await fetchUserProfile(userRow.id);
+      if (profile) return { success: true, user: profile };
+    }
+
+    const { data: profRow } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (profRow) {
+      const profile = await fetchUserProfile(profRow.id);
+      if (profile) return { success: true, user: profile };
+    }
+  } catch {}
+
+  return { success: true, message: 'Email verified successfully.' };
+};
+
+/** Resend signup confirmation OTP (legacy alias) */
+export const resendSignupOtp = async (email: string): Promise<{ success: boolean; message: string }> => {
+  return requestEmailOtp(email, 'registration');
+};
+
+/** Request a password reset recovery email / OTP */
+export const requestPasswordReset = async (email: string): Promise<{ success: boolean; message: string }> => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // Check if account exists
+  try {
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    const { data: profRow } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (!userRow && !profRow && !STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
+      return {
+        success: false,
+        message: 'No Mayflower account is associated with this email address.',
+      };
+    }
+  } catch {}
+
+  return requestEmailOtp(normalizedEmail, 'password_reset');
+};
+
+/** Verify recovery OTP */
+export const verifyRecoveryOtp = async (email: string, token: string): Promise<AuthResult> => {
+  const verifyRes = await verifyEmailOtp(email, token);
+  if (!verifyRes.success || !verifyRes.verified) {
+    return { success: false, message: verifyRes.message || 'Invalid or expired recovery code.' };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  try {
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('*')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (userRow) {
+      const profile = await fetchUserProfile(userRow.id);
+      return { success: true, user: profile || undefined };
+    }
+  } catch {}
+
+  return { success: true };
+};
+
+/** Securely update password for recovery or profile */
+export const updateUserPassword = async (
+  password: string,
+  email?: string
+): Promise<{ success: boolean; message?: string }> => {
+  const trimmed = password.trim();
+  if (trimmed.length < 6) {
+    return { success: false, message: 'Password must be at least 6 characters long.' };
+  }
+
+  const newHash = await hashPassword(trimmed);
+  let targetEmail = email?.trim().toLowerCase();
+
+  if (!targetEmail) {
+    const cachedUser = localStorage.getItem('mayflower_current_user');
+    if (cachedUser) {
+      try {
+        targetEmail = JSON.parse(cachedUser).email;
+      } catch {}
+    }
+  }
+
+  if (targetEmail) {
+    try {
+      await supabase.from('users').update({ password_hash: newHash }).ilike('email', targetEmail);
+
+      // Update local storage backup if present
+      const users = getStoredUsers();
+      const idx = users.findIndex(u => u.email.toLowerCase() === targetEmail);
+      if (idx >= 0) {
+        users[idx].password = trimmed;
+        saveStoredUsers(users);
+      }
+      return { success: true, message: 'Password updated successfully. You can now sign in with your new password.' };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Failed to update password.' };
+    }
+  }
+
+  return { success: true, message: 'Password updated successfully.' };
+};

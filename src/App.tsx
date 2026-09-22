@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { UserProfile } from './types';
 import { fetchUserProfile, getSupabaseCurrentUser, supabaseLogout } from './lib/authService';
@@ -24,31 +24,26 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Restore session on mount
+  // Restore session on mount and subscribe to real-time profile updates
   useEffect(() => {
-    if (!isSupabaseConfigured) return;
     getSupabaseCurrentUser().then((user) => {
       if (user) setCurrentUser(user);
     }).catch(() => {});
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        setCurrentUser(null);
-      } else {
-        fetchUserProfile(session.user.id).then(setCurrentUser).catch(() => {});
-      }
-    });
+    if (!isSupabaseConfigured) return;
 
     const profileChannel = supabase
       .channel('current-customer-profile')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_profiles' }, (payload) => {
         const userId = (payload.new as { id?: string }).id;
-        if (userId) fetchUserProfile(userId).then((user) => user && setCurrentUser(user)).catch(() => {});
+        const currentId = localStorage.getItem('mayflower_current_user_id');
+        if (userId && userId === currentId) {
+          fetchUserProfile(userId).then((user) => user && setCurrentUser(user)).catch(() => {});
+        }
       })
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
       supabase.removeChannel(profileChannel);
     };
   }, []);
@@ -60,6 +55,7 @@ export default function App() {
   const handleLogout = () => {
     supabaseLogout();
     localStorage.removeItem('mayflower_current_user');
+    localStorage.removeItem('mayflower_current_user_id');
     setCurrentUser(null);
   };
 

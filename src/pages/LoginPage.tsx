@@ -2,10 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { UserProfile } from '../types';
 import { getRoleHomePath } from '../routes/roleRoutes';
-import { supabaseLogin, supabaseRegister } from '../lib/authService';
-import { supabase } from '../lib/supabaseClient';
-import { isValidEmailDomain, EMAIL_VALIDATION_MESSAGE } from '../lib/validation';
-import { Eye, EyeOff, CheckCircle2, RefreshCw, ArrowLeft } from 'lucide-react';
+import {
+  supabaseLogin,
+  supabaseRegister,
+  requestEmailOtp,
+  verifyEmailOtp,
+  verifySignupOtp,
+  resendSignupOtp,
+} from '../lib/authService';
+import {
+  isValidEmailDomain,
+  EMAIL_VALIDATION_MESSAGE,
+  cleanContactNumber,
+  isValidContactNumber,
+  PHONE_VALIDATION_MESSAGE,
+} from '../lib/validation';
+import { Eye, EyeOff, CheckCircle2, RefreshCw, ArrowLeft, Lock, Mail } from 'lucide-react';
 
 interface LoginPageProps {
   currentUser: UserProfile | null;
@@ -19,12 +31,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
   const [searchParams] = useSearchParams();
   const redirectParam = searchParams.get('redirect');
   const modeParam = searchParams.get('mode');
+  const stepParam = searchParams.get('step');
+  const emailParam = searchParams.get('email');
 
   const [authMode, setAuthMode] = useState<'register' | 'login'>(
     modeParam === 'register' ? 'register' : 'login'
   );
-  const [step, setStep] = useState<AuthStep>('form');
-  const [email, setEmail] = useState('');
+  const [step, setStep] = useState<AuthStep>(stepParam === 'otp' ? 'otp' : 'form');
+  const [email, setEmail] = useState(emailParam || '');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +49,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Email Pre-Verification OTP States for Registration
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpSuccessMsg, setOtpSuccessMsg] = useState<string | null>(null);
+  const [otpErrorMsg, setOtpErrorMsg] = useState<string | null>(null);
 
   // If user is already authenticated, redirect to appropriate portal
   useEffect(() => {
@@ -90,9 +112,83 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
     }
   };
 
+  /**
+   * Step 1: Send OTP to verify email before setting password
+   */
+  const handleSendVerificationOtp = async () => {
+    setOtpErrorMsg(null);
+    setOtpSuccessMsg(null);
+    setErrorMsg(null);
+
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setOtpErrorMsg('Please enter your email address.');
+      return;
+    }
+    if (!isValidEmailDomain(trimmedEmail)) {
+      setOtpErrorMsg(EMAIL_VALIDATION_MESSAGE);
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const res = await requestEmailOtp(trimmedEmail, 'registration');
+      if (res.success) {
+        setOtpSent(true);
+        setResendCooldown(60);
+        setOtpSuccessMsg('A 6-digit verification code has been dispatched to your inbox.');
+      } else {
+        setOtpErrorMsg(res.message);
+      }
+    } catch {
+      setOtpErrorMsg('Failed to dispatch verification code. Please try again.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  /**
+   * Step 2: Confirm entered OTP
+   */
+  const handleConfirmOtp = async () => {
+    setOtpErrorMsg(null);
+    setErrorMsg(null);
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const cleanOtp = otpInput.trim();
+    if (!cleanOtp || cleanOtp.length < 6) {
+      setOtpErrorMsg('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const res = await verifyEmailOtp(trimmedEmail, cleanOtp);
+      if (res.success && res.verified) {
+        setIsEmailVerified(true);
+        setOtpSent(false);
+        setOtpSuccessMsg('Email verified successfully! You can now set your password to complete registration.');
+      } else {
+        setOtpErrorMsg(res.message || 'Invalid or expired verification code.');
+      }
+    } catch {
+      setOtpErrorMsg('Verification failed. Please try again.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  /**
+   * Step 3: Complete registration once email is verified
+   */
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+
+    if (!isEmailVerified) {
+      setErrorMsg('Please verify your email address by clicking the "Verify" button.');
+      return;
+    }
 
     if (!name.trim() || !email.trim() || !password.trim()) {
       setErrorMsg('Please fill in your name, email, and password.');
@@ -114,16 +210,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
       return;
     }
 
+    if (phone.trim() && !isValidContactNumber(phone)) {
+      setErrorMsg(PHONE_VALIDATION_MESSAGE);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await supabaseRegister(email.trim(), password, name.trim(), phone.trim());
       if (res.success && res.user) {
-        if (res.requiresEmailConfirmation) {
-          setStep('otp');
-          setResendCooldown(60);
-        } else {
-          handlePostAuthRedirect(res.user);
-        }
+        handlePostAuthRedirect(res.user);
       } else {
         setErrorMsg(res.message || 'Registration failed. Please try again.');
       }
@@ -134,7 +230,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyOtpLegacy = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     if (!otp.trim()) {
@@ -144,40 +240,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: email.trim(),
-        token: otp.trim(),
-        type: 'signup',
-      });
-
-      if (error) {
-        setErrorMsg(error.message || 'Invalid or expired code.');
-        setLoading(false);
-        return;
-      }
-
-      if (data?.user) {
-        const userProfile: UserProfile = {
-          id: data.user.id,
-          name: name.trim() || email.split('@')[0],
-          email: data.user.email || email.trim(),
-          phone: phone.trim(),
-          rewardPoints: 600,
-          tier: 'Green',
-          role: 'Customer',
-          totalVisits: 1,
-          joinedDate: new Date().toISOString().split('T')[0],
-          transactions: [
-            {
-              id: 'txn-welcome',
-              type: 'earned_signup',
-              points: 600,
-              description: 'Sanctuary Welcome Gift — 600 Points',
-              date: new Date().toISOString().split('T')[0],
-            },
-          ],
-        };
-        handlePostAuthRedirect(userProfile);
+      const res = await verifySignupOtp(email.trim(), otp.trim());
+      if (res.success && res.user) {
+        handlePostAuthRedirect(res.user);
+      } else {
+        setErrorMsg(res.message || 'Invalid or expired code.');
       }
     } catch {
       setErrorMsg('Verification failed. Please try again.');
@@ -186,12 +253,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
     }
   };
 
-  const handleResendOtp = async () => {
+  const handleResendOtpLegacy = async () => {
     if (resendCooldown > 0) return;
     setErrorMsg(null);
     try {
-      await supabase.auth.resend({ type: 'signup', email: email.trim() });
-      setResendCooldown(60);
+      const res = await resendSignupOtp(email.trim());
+      if (res.success) {
+        setResendCooldown(60);
+      } else {
+        setErrorMsg(res.message);
+      }
     } catch {
       setErrorMsg('Failed to resend code.');
     }
@@ -244,7 +315,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
         <div className="md:w-7/12 p-8 md:p-10 flex flex-col justify-center bg-white">
           
           {step === 'otp' ? (
-            /* OTP Confirmation Step */
+            /* Legacy OTP Confirmation Step if accessed via direct URL */
             <div className="space-y-5 animate-fadeIn">
               <div>
                 <div className="w-10 h-10 rounded-full bg-[#081C15]/10 flex items-center justify-center mb-3">
@@ -262,7 +333,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                 </div>
               )}
 
-              <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <form onSubmit={handleVerifyOtpLegacy} className="space-y-4">
                 <div>
                   <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40] mb-1.5">
                     Confirmation Code
@@ -297,7 +368,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                 </button>
                 <button
                   type="button"
-                  onClick={handleResendOtp}
+                  onClick={handleResendOtpLegacy}
                   disabled={resendCooldown > 0}
                   className="hover:text-black disabled:opacity-50 cursor-pointer flex items-center gap-1"
                 >
@@ -354,15 +425,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="patron@mayflower.com"
+                      placeholder="patron@gmail.com"
                       className="w-full px-4 py-2.5 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40] mb-1.5">
-                      Password
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40]">
+                        Password
+                      </label>
+                      <Link
+                        to="/forgot-password"
+                        className="text-[11px] text-stone-500 hover:text-stone-900 transition-colors underline cursor-pointer"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
                     <div className="relative">
                       <input
                         type={showPassword ? 'text' : 'password'}
@@ -391,7 +470,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                   </button>
                 </form>
               ) : (
-                /* Registration Form */
+                /* Registration Form with Email Pre-Verification OTP */
                 <form onSubmit={handleRegister} className="space-y-3.5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
@@ -403,38 +482,144 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                         required
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="Madan Kumar"
+                        placeholder="e.g. Madan Kumar"
                         className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15]"
                       />
                     </div>
                     <div>
                       <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40] mb-1">
-                        Mobile Number
+                        Contact Number (10 Digits)
                       </label>
                       <input
                         type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="98765 43210"
-                        className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15]"
+                        onChange={(e) => setPhone(cleanContactNumber(e.target.value))}
+                        placeholder="9876543210"
+                        className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm font-mono focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15]"
                       />
                     </div>
                   </div>
 
+                  {/* Email with Verify Button */}
                   <div>
-                    <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40] mb-1">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="madan@example.com"
-                      className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15]"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40]">
+                        Email Address
+                      </label>
+                      {isEmailVerified && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Verified
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="email"
+                          required
+                          disabled={isEmailVerified}
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            setIsEmailVerified(false);
+                            setOtpSent(false);
+                            setOtpErrorMsg(null);
+                            setOtpSuccessMsg(null);
+                          }}
+                          placeholder="name@domain.com"
+                          className={`w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] ${
+                            isEmailVerified ? 'opacity-80 bg-stone-100 text-stone-700 cursor-not-allowed' : ''
+                          }`}
+                        />
+                        {isEmailVerified && (
+                          <Lock className="w-3.5 h-3.5 text-stone-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        )}
+                      </div>
+
+                      {!isEmailVerified && (
+                        <button
+                          type="button"
+                          onClick={handleSendVerificationOtp}
+                          disabled={otpLoading || resendCooldown > 0 || !email.trim()}
+                          className="px-4 py-2 bg-[#081C15] hover:bg-[#122e23] text-[#DFC993] hover:text-white text-xs uppercase tracking-wider font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer shrink-0 shadow-sm"
+                        >
+                          {otpLoading
+                            ? 'Sending...'
+                            : resendCooldown > 0
+                            ? `${resendCooldown}s`
+                            : otpSent
+                            ? 'Resend'
+                            : 'Verify'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Inline OTP Verification Section when otpSent & not verified */}
+                    {otpSent && !isEmailVerified && (
+                      <div className="mt-2.5 p-3.5 bg-[#FAF7F2] border border-[#DFC993]/40 rounded-xl space-y-2 animate-fadeIn">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-stone-700 flex items-center gap-1.5">
+                            <Mail className="w-3.5 h-3.5 text-[#081C15]" />
+                            Enter 6-Digit Verification Code
+                          </span>
+                          <span className="text-[10px] text-stone-500 font-medium">Dispatched to your inbox</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={otpInput}
+                            onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                            placeholder="6-digit OTP"
+                            className="flex-1 px-3 py-1.5 bg-white border border-[#E8E4DB] rounded-lg text-sm text-center font-mono tracking-widest focus:outline-none focus:border-[#081C15]"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleConfirmOtp}
+                            disabled={otpLoading || otpInput.trim().length < 6}
+                            className="px-3.5 py-1.5 bg-[#081C15] hover:bg-[#122e23] text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 cursor-pointer shrink-0"
+                          >
+                            {otpLoading ? 'Verifying...' : 'Confirm'}
+                          </button>
+                        </div>
+
+                        {otpErrorMsg && (
+                          <p className="text-[11px] text-rose-600 font-medium">{otpErrorMsg}</p>
+                        )}
+                        {otpSuccessMsg && (
+                          <p className="text-[11px] text-emerald-700 font-medium">{otpSuccessMsg}</p>
+                        )}
+
+                        <div className="flex items-center justify-between text-[10px] text-stone-500 pt-1">
+                          <span>Didn't receive the code?</span>
+                          <button
+                            type="button"
+                            onClick={handleSendVerificationOtp}
+                            disabled={resendCooldown > 0 || otpLoading}
+                            className="text-[#081C15] font-bold hover:underline disabled:opacity-50 cursor-pointer"
+                          >
+                            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend Code'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {isEmailVerified && otpSuccessMsg && (
+                      <p className="text-[11px] text-emerald-700 font-medium mt-1.5 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        {otpSuccessMsg}
+                      </p>
+                    )}
                   </div>
 
+                  {/* Password & Confirm Password (enabled once email is verified) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40] mb-1">
@@ -445,15 +630,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                           type={showPassword ? 'text' : 'password'}
                           required
                           minLength={6}
+                          disabled={!isEmailVerified}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Min 6 chars"
-                          className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9"
+                          placeholder={isEmailVerified ? "Min 6 chars" : "Verify email first"}
+                          className={`w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9 ${
+                            !isEmailVerified ? 'opacity-60 cursor-not-allowed bg-stone-100' : ''
+                          }`}
                         />
                         <button
                           type="button"
+                          disabled={!isEmailVerified}
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer disabled:opacity-40"
                         >
                           {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
@@ -469,15 +658,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                           type={showConfirmPassword ? 'text' : 'password'}
                           required
                           minLength={6}
+                          disabled={!isEmailVerified}
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Re-enter password"
-                          className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9"
+                          placeholder={isEmailVerified ? "Re-enter password" : "Verify email first"}
+                          className={`w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9 ${
+                            !isEmailVerified ? 'opacity-60 cursor-not-allowed bg-stone-100' : ''
+                          }`}
                         />
                         <button
                           type="button"
+                          disabled={!isEmailVerified}
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer disabled:opacity-40"
                         >
                           {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
@@ -487,10 +680,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
 
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="w-full py-3.5 rounded-xl bg-[#081C15] hover:bg-[#122e23] text-white text-xs uppercase tracking-widest font-bold transition-colors cursor-pointer disabled:opacity-50 shadow-md mt-2"
+                    disabled={loading || !isEmailVerified}
+                    className="w-full py-3.5 rounded-xl bg-[#081C15] hover:bg-[#122e23] text-white text-xs uppercase tracking-widest font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md mt-2"
                   >
-                    {loading ? 'Creating Account...' : 'Create Account'}
+                    {loading
+                      ? 'Creating Account...'
+                      : !isEmailVerified
+                      ? 'Verify Email to Enable Account Creation'
+                      : 'Create Account'}
                   </button>
                 </form>
               )}

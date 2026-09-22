@@ -8,14 +8,6 @@ import { PatronProfile } from '../src/components/dashboards/customer/types';
 // Mock Supabase
 vi.mock('../src/lib/supabaseClient', () => ({
   supabase: {
-    auth: {
-      signInWithPassword: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-      signUp: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-new-1', email: 'test@example.com' } }, error: null }),
-      updateUser: vi.fn().mockResolvedValue({ data: { user: { id: 'usr-1' } }, error: null }),
-      getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-      verifyOtp: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-      resend: vi.fn().mockResolvedValue({ data: null, error: null }),
-    },
     from: vi.fn().mockReturnValue({
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
@@ -39,6 +31,8 @@ vi.mock('../src/lib/authService', () => ({
       user: { id: 'usr-2', name, email, phone, role: 'Customer' },
     });
   }),
+  requestEmailOtp: vi.fn().mockResolvedValue({ success: true, message: 'OTP sent' }),
+  verifyEmailOtp: vi.fn().mockResolvedValue({ success: true, verified: true }),
   updateUserProfile: vi.fn().mockImplementation((params) => {
     return Promise.resolve({
       success: true,
@@ -54,7 +48,7 @@ vi.mock('../src/lib/authService', () => ({
 }));
 
 describe('AuthModal Redesign (Two-Sided Luxury Screen)', () => {
-  it('renders left-side Mayflower heritage screen and right-side form', () => {
+  it('renders left-side Mayflower heritage screen and right-side form with verify button', () => {
     render(
       <AuthModal
         isOpen={true}
@@ -71,13 +65,15 @@ describe('AuthModal Redesign (Two-Sided Luxury Screen)', () => {
 
     // Right side registration fields
     expect(screen.getByPlaceholderText('e.g. Eleanor Vance')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('name@email.com')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('+91 98400 12345')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('••••••••••••')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Re-enter password')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('name@domain.com')).toBeInTheDocument();
+    const phoneInput = screen.getByPlaceholderText('9876543210');
+    expect(phoneInput).toBeInTheDocument();
+    fireEvent.change(phoneInput, { target: { value: '+91 (98400) 12345 ext 9' } });
+    expect(phoneInput).toHaveValue('9198400123');
+    expect(screen.getByRole('button', { name: /^Verify$/i })).toBeInTheDocument();
   });
 
-  it('validates password and confirm password matching on registration', async () => {
+  it('supports email verification flow and enables password entry upon verification', async () => {
     render(
       <AuthModal
         isOpen={true}
@@ -88,7 +84,24 @@ describe('AuthModal Redesign (Two-Sided Luxury Screen)', () => {
     );
 
     fireEvent.change(screen.getByPlaceholderText('e.g. Eleanor Vance'), { target: { value: 'Eleanor' } });
-    fireEvent.change(screen.getByPlaceholderText('name@email.com'), { target: { value: 'eleanor@gmail.com' } });
+    fireEvent.change(screen.getByPlaceholderText('name@domain.com'), { target: { value: 'eleanor@ritchennai.edu.in' } });
+
+    // Click Verify to send OTP
+    fireEvent.click(screen.getByRole('button', { name: /^Verify$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('6-digit code')).toBeInTheDocument();
+    });
+
+    // Enter 6-digit OTP and Confirm
+    fireEvent.change(screen.getByPlaceholderText('6-digit code'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /Confirm/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Verified')).toBeInTheDocument();
+    });
+
+    // Password fields are now active
     fireEvent.change(screen.getByPlaceholderText('••••••••••••'), { target: { value: 'password123' } });
     fireEvent.change(screen.getByPlaceholderText('Re-enter password'), { target: { value: 'different123' } });
 
@@ -138,83 +151,80 @@ describe('PatronProfileModal Edit Profile & DB Sync', () => {
     tier: 'Green',
     stars: 500,
     maxTierStars: 800,
-    nextTier: 'Gold Tier',
+    nextTier: 'Gold Member',
     ptsToNextTier: 300,
     memberSince: '14 Sept 2026',
     totalVisits: 3,
-    dietaryPreferences: ['Truffle Degustation'],
-    preferredSeating: 'Quiet corner or Verandah booth',
+    dietaryPreferences: ['Chef’s Table Special'],
+    preferredSeating: 'Indoor Salon',
   };
 
-  it('prefills current patron credentials and preferences', () => {
+  it('renders existing patron data prefilled in form', () => {
     render(
       <PatronProfileModal
         isOpen={true}
         onClose={vi.fn()}
-        patron={mockPatron}
         user={mockUser}
+        patron={mockPatron}
         onUpdateSuccess={vi.fn()}
       />
     );
 
+    expect(screen.getByText('Edit Profile')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Madan Kumar')).toBeInTheDocument();
     expect(screen.getByDisplayValue('madan@example.com')).toBeInTheDocument();
     expect(screen.getByDisplayValue('+91 98400 55555')).toBeInTheDocument();
   });
 
-  it('updates profile and invokes onUpdateSuccess', async () => {
-    const handleSuccess = vi.fn();
-
+  it('allows editing name, phone, and optional dietary preference', () => {
     render(
       <PatronProfileModal
         isOpen={true}
         onClose={vi.fn()}
-        patron={mockPatron}
         user={mockUser}
-        onUpdateSuccess={handleSuccess}
-      />
-    );
-
-    const nameInput = screen.getByDisplayValue('Madan Kumar');
-    fireEvent.change(nameInput, { target: { value: 'Madan Senior' } });
-
-    const submitBtn = screen.getByRole('button', { name: /^Save Changes$/i });
-    fireEvent.click(submitBtn);
-
-    await waitFor(() => {
-      expect(handleSuccess).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Madan Senior' }),
-        expect.objectContaining({ name: 'Madan Senior' })
-      );
-    });
-  });
-
-  it('renders password and new password fields and validates matching', async () => {
-    render(
-      <PatronProfileModal
-        isOpen={true}
-        onClose={vi.fn()}
         patron={mockPatron}
-        user={mockUser}
         onUpdateSuccess={vi.fn()}
       />
     );
 
-    expect(screen.getByText('Change Password')).toBeInTheDocument();
-    expect(screen.getByText('Password')).toBeInTheDocument();
-    expect(screen.getByText('New Password')).toBeInTheDocument();
+    const nameInput = screen.getByDisplayValue('Madan Kumar');
+    fireEvent.change(nameInput, { target: { value: 'Madan K.' } });
+    expect(nameInput).toHaveValue('Madan K.');
 
-    const passwordInputs = screen.getAllByPlaceholderText('••••••••••••');
-    expect(passwordInputs).toHaveLength(2);
+    const phoneInput = screen.getByDisplayValue('+91 98400 55555');
+    fireEvent.change(phoneInput, { target: { value: '+91 98400 99999' } });
+    expect(phoneInput).toHaveValue('+91 98400 99999');
+  });
 
-    fireEvent.change(passwordInputs[0], { target: { value: 'firstpassword' } });
-    fireEvent.change(passwordInputs[1], { target: { value: 'differentpassword' } });
+  it('submits updated profile data and calls onProfileUpdate callback', async () => {
+    const onProfileUpdate = vi.fn();
+    const onClose = vi.fn();
 
-    const submitBtn = screen.getByRole('button', { name: /^Save Changes$/i });
+    render(
+      <PatronProfileModal
+        isOpen={true}
+        onClose={onClose}
+        user={mockUser}
+        patron={mockPatron}
+        onUpdateSuccess={onProfileUpdate}
+      />
+    );
+
+    const nameInput = screen.getByDisplayValue('Madan Kumar');
+    fireEvent.change(nameInput, { target: { value: 'Madan Verified' } });
+
+    const submitBtn = screen.getByRole('button', { name: /Save Changes/i });
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Passwords do not match/i)).toBeInTheDocument();
+      expect(onProfileUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Madan Verified',
+          email: 'madan@example.com',
+        }),
+        expect.anything()
+      );
+      expect(onClose).toHaveBeenCalled();
     });
   });
 });
