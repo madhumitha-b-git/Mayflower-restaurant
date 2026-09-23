@@ -132,8 +132,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setOtpSent(true);
         setResendCooldown(60);
         setOtpSuccessMsg(res.message || 'A 6-digit verification code has been dispatched to your inbox.');
-        const cached = (res as any).otp || sessionStorage.getItem('mayflower_last_otp');
-        if (cached) setOtpInput(cached);
       } else {
         setOtpErrorMsg(res.message);
         if (res.message?.toLowerCase().includes('already registered')) {
@@ -592,21 +590,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       {otpErrorMsg && <p className="text-[10px] text-rose-600 font-medium">{otpErrorMsg}</p>}
                       {otpSuccessMsg && <p className="text-[10px] text-emerald-700 font-medium">{otpSuccessMsg}</p>}
 
-                      <div className="flex items-center justify-between text-[10px] text-stone-500 pt-0.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const fallback = otpInput || sessionStorage.getItem('mayflower_last_otp') || '123456';
-                            setOtpInput(fallback);
-                            setIsEmailVerified(true);
-                            setOtpSent(false);
-                            setOtpSuccessMsg('Email verified successfully! You can now set your password.');
-                          }}
-                          className="text-[#0F251C] font-bold hover:underline cursor-pointer flex items-center gap-1"
-                        >
-                          ⚡ Instant Verify (1-Click)
-                        </button>
-
+                      <div className="flex items-center justify-end text-[10px] text-stone-500 pt-0.5">
                         <button
                           type="button"
                           onClick={handleSendVerificationOtp}

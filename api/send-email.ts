@@ -449,26 +449,23 @@ export default async function handler(req: any, res: any) {
       });
 
       if (!sendRes.success) {
-        console.warn(`[OTP Send via Gmail Note for ${targetEmail}]:`, sendRes.error);
-        return res.status(200).json({
-          success: true,
-          message: `Verification code generated. (Check email or use code: ${otpCode})`,
-          otp: otpCode,
+        console.error(`[OTP Send via Gmail failed for ${targetEmail}]:`, sendRes.error);
+        return res.status(500).json({
+          success: false,
+          error: `Could not send verification email (${sendRes.error || 'delivery failed'}). Please check your email address.`,
         });
       }
 
       return res.status(200).json({
         success: true,
         message: 'A 6-digit verification code has been dispatched to your email address.',
-        otp: otpCode,
       });
     }
 
-    // Fallback when Gmail OAuth is not configured on Vercel:
-    return res.status(200).json({
-      success: true,
-      message: `Verification code generated: ${otpCode}`,
-      otp: otpCode,
+    // When Gmail OAuth is not configured:
+    return res.status(500).json({
+      success: false,
+      error: 'Email service is not configured on this server. Please configure Gmail API credentials.',
     });
   }
 

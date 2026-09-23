@@ -139,8 +139,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
         setOtpSent(true);
         setResendCooldown(60);
         setOtpSuccessMsg(res.message || 'A 6-digit verification code has been dispatched to your inbox.');
-        const cached = (res as any).otp || sessionStorage.getItem('mayflower_last_otp');
-        if (cached) setOtpInput(cached);
       } else {
         setOtpErrorMsg(res.message);
         if (res.message?.toLowerCase().includes('already registered')) {
@@ -697,21 +695,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                           <p className="text-[11px] text-emerald-700 font-medium">{otpSuccessMsg}</p>
                         )}
 
-                        <div className="flex items-center justify-between text-[10px] text-stone-500 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const fallback = otpInput || sessionStorage.getItem('mayflower_last_otp') || '123456';
-                              setOtpInput(fallback);
-                              setIsEmailVerified(true);
-                              setOtpSent(false);
-                              setOtpSuccessMsg('Email verified successfully! You can now set your password.');
-                            }}
-                            className="text-[#081C15] font-bold hover:underline cursor-pointer flex items-center gap-1"
-                          >
-                            ⚡ Instant Verify (1-Click)
-                          </button>
-
+                        <div className="flex items-center justify-end text-[10px] text-stone-500 pt-1">
                           <button
                             type="button"
                             onClick={handleSendVerificationOtp}
