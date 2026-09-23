@@ -360,6 +360,17 @@ export default async function handler(req: any, res: any) {
   };
 
   const defaultSender = (process.env.GMAIL_USER || process.env.EMAIL_FROM || 'The Mayflower <me>').trim();
+  const supabaseUrl = (
+    process.env.VITE_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
+    'https://bnebpktyrccybccdeokj.supabase.co'
+  ).trim();
+  const supabaseKey = (
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJuZWJwa3R5cmNjeWJjY2Rlb2tqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3NzI1NzQsImV4cCI6MjEwNDM0ODU3NH0.2vQ-uVtoNptaaoLWWT01SezROC6aAyuyZXJ_Xlt43pc'
+  ).trim();
   const body = await parseBody(req);
   let action = body.action;
   if (!action && req.url?.includes('/send-otp')) action = 'send_otp';
