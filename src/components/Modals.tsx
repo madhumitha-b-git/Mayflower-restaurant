@@ -37,26 +37,24 @@ export const Modals: React.FC<ModalsProps> = ({ activeModal, currentUser, onClos
     try {
       if (activeModal === 'feedback') {
         const selectedOutlet = outletsList.find(o => o.name === feedbackOutlet) || outletsList[0];
-        const feedbackComment = feedbackGuestName ? `[${feedbackGuestName}]: ${feedbackNotes}` : feedbackNotes;
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentUser?.id || '');
+        const guestName = feedbackGuestName || currentUser?.name || 'Guest';
         try {
           await supabase.from('feedback').insert({
-            customer_id: currentUser?.id && currentUser.id.length === 36 ? currentUser.id : null,
+            customer_id: isUuid ? currentUser?.id : null,
+            customer_name: guestName,
+            customer_email: currentUser?.email || '',
             outlet_id: selectedOutlet?.id || 'a1000000-0000-0000-0000-000000000001',
+            outlet_name: feedbackOutlet || selectedOutlet?.name || 'Poes Garden',
             rating,
-            comment: feedbackComment,
-            status: 'new',
+            comment: feedbackNotes,
+            comments: feedbackNotes,
+            status: 'New',
           });
-        } catch {
-          try {
-            await supabase.from('feedback').insert({
-              customer_id: currentUser?.id && currentUser.id.length === 36 ? currentUser.id : null,
-              outlet_id: selectedOutlet?.id || 'a1000000-0000-0000-0000-000000000001',
-              rating,
-              comments: feedbackComment,
-              status: 'new',
-            });
-          } catch {}
-        }
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('mayflower_feedback_updated'));
+          }
+        } catch {}
 
         await getDataProvider().submitFeedback(currentUser || null, {
           outlet: feedbackOutlet || selectedOutlet?.name || 'Poes Garden Flagship',

@@ -293,18 +293,31 @@ export function verifyOtp(email: string, code: string): { success: boolean; erro
    4. Serverless Handler Entrypoint
    ========================================================================== */
 
-async function getJsonBody(req: IncomingMessage): Promise<any> {
-  return new Promise((resolve, reject) => {
+async function parseBody(req: any): Promise<any> {
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+  if (req.readableEnded || req.complete) {
+    return {};
+  }
+  return new Promise((resolve) => {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    req.on('data', (chunk: any) => { body += chunk; });
     req.on('end', () => {
       try {
         resolve(body ? JSON.parse(body) : {});
-      } catch (err) {
-        reject(err);
+      } catch {
+        resolve({});
       }
     });
-    req.on('error', err => reject(err));
+    req.on('error', () => resolve({}));
   });
 }
 
@@ -347,7 +360,7 @@ export default async function handler(req: any, res: any) {
   };
 
   const defaultSender = (process.env.GMAIL_USER || process.env.EMAIL_FROM || 'The Mayflower <me>').trim();
-  const body = typeof req.body === 'object' && req.body !== null ? req.body : await getJsonBody(req);
+  const body = await parseBody(req);
   let action = body.action;
   if (!action && req.url?.includes('/send-otp')) action = 'send_otp';
   if (!action && req.url?.includes('/verify-otp')) action = 'verify_otp';
@@ -481,12 +494,29 @@ export default async function handler(req: any, res: any) {
     let emailSubject = subject || 'Notification from The Mayflower';
     let emailHtml = html || '';
 
-    if (emailType === 'welcome' && payload) {
-      emailSubject = `🌸 Welcome to Mayflower Sanctuary — Account Confirmed!`;
-      emailHtml = generateWelcomeEmailHtml(payload);
-    } else if (emailType === 'reservation_confirmed' && payload) {
-      emailSubject = `🌸 Table Reservation Confirmed (${payload.bookingCode || 'Mayflower'})`;
-      emailHtml = generateReservationConfirmationEmailHtml(payload);
+    const normalizedType = (emailType || '').toLowerCase();
+    if ((normalizedType === 'welcome' || normalizedType === 'welcome_email') && payload) {
+      emailSubject = subject || `🌸 Welcome to Mayflower Sanctuary — Account Confirmed!`;
+      emailHtml = generateWelcomeEmailHtml({
+        name: payload.name,
+        email: to,
+        memberId: payload.memberId || payload.member_id,
+        bonusPoints: payload.bonusPoints || payload.bonus_points,
+        portalUrl: payload.portalUrl || payload.portal_url,
+      });
+    } else if ((normalizedType === 'reservation_confirmed' || normalizedType === 'reservation_email' || normalizedType === 'reservation') && payload) {
+      emailSubject = subject || `🌸 Table Reservation Confirmed (${payload.bookingCode || payload.booking_code || 'Mayflower'})`;
+      emailHtml = generateReservationConfirmationEmailHtml({
+        name: payload.name,
+        email: to,
+        bookingCode: payload.bookingCode || payload.booking_code || 'MF-BOOKING',
+        outletName: payload.outletName || payload.outlet_name || 'Mayflower Heritage',
+        date: payload.date || '',
+        timeSlot: payload.timeSlot || payload.time || '',
+        guests: payload.guests || payload.party_size || 2,
+        seatingArea: payload.seatingArea || payload.seating_area,
+        specialRequests: payload.specialRequests || payload.special_requests,
+      });
     }
 
     const sendRes = await sendViaGmailApi(googleCreds, {
@@ -501,6 +531,7 @@ export default async function handler(req: any, res: any) {
 
   return res.status(200).json({
     success: true,
+    configured: false,
     message: 'Email queued (Google OAuth not configured on this host).',
   });
 }

@@ -23,6 +23,7 @@ export interface TaskLike {
 export interface FeedbackLike {
   id?: string;
   customer_id?: string;
+  customerId?: string;
   user_id?: string;
   email?: string;
   outlet?: string | null;
@@ -121,7 +122,7 @@ export const canViewFeedback = (user?: UserProfile | null, feedback?: FeedbackLi
   if (isSuperAdmin(user) || isOwner(user) || isAdmin(user) || isManager(user)) return true;
   if (isCustomer(user)) {
     if (!feedback) return true;
-    const cid = feedback.customer_id || feedback.user_id;
+    const cid = feedback.customer_id || feedback.customerId || feedback.user_id;
     return cid === user.id || (Boolean(feedback.email) && feedback.email?.toLowerCase() === user.email?.toLowerCase());
   }
   return false;

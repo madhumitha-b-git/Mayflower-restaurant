@@ -254,18 +254,30 @@ export const fetchAdminOperationalData = async (): Promise<AdminOperationalData>
   try {
     const { data: dbFeedback } = await supabase
       .from('feedback')
-      .select('*')
+      .select('*, outlets(name), users(name, email)')
       .order('created_at', { ascending: false })
       .limit(100);
 
     if (dbFeedback && dbFeedback.length > 0) {
       allFeedback = dbFeedback.map((fb: any) => ({
         ...fb,
-        comments: fb.comment || fb.comments || '',
-        customer_name: fb.customer_name || 'Guest',
+        comments: fb.comments || fb.comment || '',
+        comment: fb.comment || fb.comments || '',
+        customer_name: fb.customer_name || fb.users?.name || 'Valued Guest',
+        guest_name: fb.customer_name || fb.users?.name || 'Valued Guest',
+        email: fb.customer_email || fb.users?.email || '',
+        outlet: fb.outlet_name || fb.outlets?.name || (
+          fb.outlet_id === 'a1000000-0000-0000-0000-000000000002' ? 'Anna Nagar' :
+          fb.outlet_id === 'a1000000-0000-0000-0000-000000000003' ? 'Egmore' :
+          fb.outlet_id === 'a1000000-0000-0000-0000-000000000004' ? 'Palavakkam (ECR)' :
+          'Poes Garden'
+        ),
+        outlet_name: fb.outlet_name || fb.outlets?.name || 'Poes Garden',
       }));
     }
-  } catch {}
+  } catch (err) {
+    console.warn('adminService fetch feedback note:', err);
+  }
 
   if (allFeedback.length === 0) {
     try {

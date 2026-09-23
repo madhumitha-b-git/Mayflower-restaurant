@@ -108,8 +108,8 @@ export class SupabaseDataProvider implements DataProvider {
       // 2. Query reservations table
       const { data: dbRes, error } = await supabase
         .from('reservations')
-        .select('*')
-        .order('reservation_date', { ascending: false })
+        .select('*, outlets(name)')
+        .order('date', { ascending: false })
         .limit(100);
 
       const tableReservations: SeedReservation[] = [];
@@ -156,14 +156,31 @@ export class SupabaseDataProvider implements DataProvider {
 
   async createReservation(actor: UserProfile, payload: Partial<SeedReservation>): Promise<SeedReservation> {
     try {
+      const lower = (payload.outlet || '').toLowerCase();
+      let outletId = 'a1000000-0000-0000-0000-000000000001';
+      if (lower.includes('anna')) outletId = 'a1000000-0000-0000-0000-000000000002';
+      else if (lower.includes('egmore')) outletId = 'a1000000-0000-0000-0000-000000000003';
+      else if (lower.includes('palavakkam') || lower.includes('ecr')) outletId = 'a1000000-0000-0000-0000-000000000004';
+
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actor?.id || '');
+      const bookingCode = `MF-${Math.floor(1000 + Math.random() * 9000)}`;
+      const dateVal = payload.date && payload.date.includes('-') ? payload.date : new Date().toISOString().split('T')[0];
+
       const newRes: any = {
-        customer_id: actor.id,
-        booking_code: `MF-${Math.floor(1000 + Math.random() * 9000)}`,
-        outlet: payload.outlet || 'Poes Garden Flagship',
-        reservation_date: payload.date || new Date().toLocaleDateString('en-IN'),
-        party_size: payload.guests || 2,
-        reservation_time: payload.timeSlot || '19:30',
-        status: 'pending',
+        booking_code: bookingCode,
+        customer_id: isUuid ? actor.id : null,
+        customer_name: actor?.name || payload.customerName || 'Valued Guest',
+        customer_phone: actor?.phone || payload.phone || '',
+        customer_email: actor?.email || payload.email || '',
+        outlet_id: outletId,
+        outlet_name: payload.outlet || 'Poes Garden Flagship',
+        date: dateVal,
+        time_slot: payload.timeSlot || '19:30',
+        guests: Number(payload.guests || 2),
+        party_size: Number(payload.guests || 2),
+        status: 'Confirmed',
+        seating_area: payload.seatingArea || 'Main Dining',
+        special_notes: payload.specialRequests || '',
         special_requests: payload.specialRequests || '',
       };
       const { data, error } = await supabase.from('reservations').insert(newRes).select('*').single();
@@ -177,15 +194,17 @@ export class SupabaseDataProvider implements DataProvider {
           email: actor.email,
           phone: actor.phone,
           outlet: payload.outlet || 'Poes Garden Flagship',
-          date: payload.date || '',
-          timeSlot: payload.timeSlot || '',
-          guests: payload.guests || 2,
+          date: data.date || dateVal,
+          timeSlot: data.time_slot || payload.timeSlot || '19:30',
+          guests: data.guests || payload.guests || 2,
           seatingArea: payload.seatingArea || 'Main Dining',
-          status: 'Pending',
+          status: 'Confirmed',
           bookedAt: new Date().toLocaleDateString('en-IN'),
         };
       }
-    } catch {}
+    } catch (err) {
+      console.warn('SupabaseDataProvider.createReservation error:', err);
+    }
     return this.fallback.createReservation(actor, payload);
   }
 
@@ -276,34 +295,50 @@ export class SupabaseDataProvider implements DataProvider {
       else if (lower.includes('egmore')) outletId = 'a1000000-0000-0000-0000-000000000003';
       else if (lower.includes('palavakkam') || lower.includes('ecr')) outletId = 'a1000000-0000-0000-0000-000000000004';
 
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actor?.id || '');
+      const custName = payload.customerName || actor?.name || 'Valued Guest';
+      const custEmail = payload.email || actor?.email || '';
+
       const rowPayload: any = {
-        customer_id: actor?.id || null,
+        customer_id: isUuid ? actor?.id : null,
+        customer_name: custName,
+        customer_email: custEmail,
         outlet_id: outletId,
+        outlet_name: payload.outlet || 'Poes Garden',
         rating: payload.rating,
-        comments: payload.customerName ? `[${payload.customerName}]: ${payload.message}` : payload.message,
+        comments: payload.message,
         comment: payload.message,
-        status: 'new',
+        status: 'New',
       };
       if (payload.reservationId) rowPayload.reservation_id = payload.reservationId;
 
       const { data, error } = await supabase.from('feedback').insert(rowPayload).select().single();
       if (!error && data) {
         this.emit('feedback', data);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('mayflower_feedback_updated'));
+        }
       }
-    } catch {}
+    } catch (err) {
+      console.warn('SupabaseDataProvider.submitFeedback error:', err);
+    }
     return this.fallback.submitFeedback(actor as any, payload);
   }
 
   async updateFeedbackStatus(actor: UserProfile, feedbackId: string, status: string): Promise<SeedFeedback> {
     try {
+      const statusTitle = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
       const { data, error } = await supabase
         .from('feedback')
-        .update({ status: status.toLowerCase() } as any)
+        .update({ status: statusTitle } as any)
         .eq('id', feedbackId)
         .select()
         .single();
       if (!error && data) {
         this.emit('feedback', data);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('mayflower_feedback_updated'));
+        }
       }
     } catch {}
     return this.fallback.updateFeedbackStatus(actor, feedbackId, status);

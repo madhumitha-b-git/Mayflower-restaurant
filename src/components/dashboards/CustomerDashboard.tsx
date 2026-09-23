@@ -235,28 +235,36 @@ export const CustomerDashboard: React.FC<Props> = ({
           };
         });
       } else {
-        const { data: resData } = await supabase
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user?.id || '');
+        let query = supabase
           .from('reservations')
-          .select('id,booking_code,reservation_date,time_slot,reservation_time,party_size,guests,status,special_occasion,special_requests,outlets(name)')
-          .eq('customer_id', user.id)
-          .order('reservation_date', { ascending: false });
+          .select('*, outlets(name)')
+          .order('date', { ascending: false });
+
+        if (isUuid) {
+          query = query.or(`customer_id.eq.${user.id},customer_email.eq.${user.email}`);
+        } else if (user?.email) {
+          query = query.eq('customer_email', user.email);
+        }
+
+        const { data: resData } = await query;
 
         if (resData && resData.length > 0) {
           mappedReservations = (resData as any[]).map((r) => {
-            const outletName = r.outlets?.name || 'Poes Garden';
+            const outletName = r.outlet_name || r.outlets?.name || 'Poes Garden';
             const timeVal = r.time_slot || r.reservation_time || '7:30 PM';
             return {
               id: r.id,
               ref: r.booking_code ? `#${r.booking_code}` : `#MF-${r.id.slice(-4)}`,
               salon: outletName,
               salonTag: getSalonTag(outletName),
-              date: r.reservation_date || '—',
+              date: r.date || r.reservation_date || '—',
               time: timeVal,
               experienceType: timeVal.toLowerCase().includes('tea') ? 'Afternoon Tea' : 'Fine Dining Tasting',
               guests: r.guests || r.party_size || 2,
               status: ((r.status || 'CONFIRMED').toUpperCase() as any),
               imageUrl: getVenueImage(outletName),
-              notes: r.special_occasion || r.special_requests || undefined,
+              notes: r.special_occasion || r.special_notes || r.special_requests || undefined,
             };
           });
         }
@@ -495,13 +503,22 @@ export const CustomerDashboard: React.FC<Props> = ({
 
     // Update Supabase feedback & profile
     try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user?.id || '');
       await supabase.from('feedback').insert({
-        customer_id: user.id,
+        customer_id: isUuid ? user.id : null,
+        customer_name: user.name || 'Valued Patron',
+        customer_email: user.email || '',
         outlet_id: getOutletIdByName(feedback.salon),
+        outlet_name: feedback.salon,
         rating: feedback.rating,
         comment: feedback.notes,
-        status: 'new',
+        comments: feedback.notes,
+        status: 'New',
       });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mayflower_feedback_updated'));
+      }
 
       const { data: profileData } = await supabase
         .from('user_profiles')

@@ -81,7 +81,7 @@ export const isEmailRegistered = async (email: string): Promise<boolean> => {
 export const requestEmailOtp = async (
   email: string,
   purpose: 'registration' | 'password_reset' = 'registration'
-): Promise<{ success: boolean; message: string }> => {
+): Promise<{ success: boolean; message: string; otp?: string }> => {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) {
     return { success: false, message: 'Please enter a valid email address.' };
@@ -99,17 +99,32 @@ export const requestEmailOtp = async (
   }
 
   try {
-    const res = await fetch('/api/send-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'send_otp',
-        to: normalizedEmail,
-        purpose,
-      }),
-    });
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 6000) : null;
 
-    const data = await res.json();
+    let res: Response;
+    try {
+      res = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'send_otp',
+          to: normalizedEmail,
+          purpose,
+        }),
+        signal: controller?.signal,
+      });
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+
+    let data: any = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
     if (data.otp) {
       try {
         sessionStorage.setItem('mayflower_last_otp', data.otp);
@@ -125,12 +140,14 @@ export const requestEmailOtp = async (
       return {
         success: true,
         message: `Verification code generated: ${fallbackOtp}`,
+        otp: fallbackOtp,
       };
     }
 
     return {
       success: true,
       message: data.message || 'A 6-digit verification code has been dispatched to your email address.',
+      otp: data.otp,
     };
   } catch (err: any) {
     console.warn('[requestEmailOtp Note]: using resilient fallback code', err);
@@ -141,6 +158,7 @@ export const requestEmailOtp = async (
     return {
       success: true,
       message: `Verification code generated: ${fallbackOtp}`,
+      otp: fallbackOtp,
     };
   }
 };
@@ -607,18 +625,27 @@ export const addReservationForCurrentUser = async (
   // 1. Try schema-compliant insert into reservations table
   if (outletId) {
     try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user?.id || '');
       await supabase.from('reservations').insert({
-        customer_id: user.id && user.id.length === 36 ? user.id : null,
+        customer_id: isUuid ? user.id : null,
+        customer_name: user.name || 'Valued Patron',
+        customer_phone: user.phone || '',
+        customer_email: user.email || '',
         outlet_id: outletId,
+        outlet_name: reservation.outlet || 'Poes Garden Flagship',
         booking_code: reservation.bookingCode,
         date: reservation.date,
         time_slot: reservation.timeSlot || '19:00',
-        guests: reservation.guests || 2,
+        guests: Number(reservation.guests || 2),
+        party_size: Number(reservation.guests || 2),
         status: 'Confirmed',
         seating_area: reservation.seatingArea || 'Main Dining',
-        special_notes: reservation.seatingArea ? `Area: ${reservation.seatingArea}` : null
+        special_notes: reservation.seatingArea ? `Area: ${reservation.seatingArea}` : null,
+        special_requests: reservation.seatingArea ? `Area: ${reservation.seatingArea}` : null,
       });
-    } catch {}
+    } catch (err) {
+      console.warn('[addReservationForCurrentUser] reservations insert note:', err);
+    }
   }
 
   // 2. Credit loyalty points and append reservation record to user_profiles
