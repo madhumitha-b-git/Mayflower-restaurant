@@ -1,34 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { PatronProfile } from './types';
-import { UserProfile } from '../../../types';
-import { updateUserProfile, requestEmailOtp, verifyEmailOtp, updateUserPassword } from '../../../lib/authService';
+import { UserProfile } from '../../types';
+import { updateUserProfile, requestEmailOtp, verifyEmailOtp, updateUserPassword } from '../../lib/authService';
 import {
   User, Mail, Phone, Lock, Eye, EyeOff, CheckCircle2,
   AlertCircle, Loader2, ShieldCheck, KeyRound, RefreshCw
 } from 'lucide-react';
-import { cleanContactNumber, isValidContactNumber, PHONE_VALIDATION_MESSAGE } from '../../../lib/validation';
+import { cleanContactNumber, isValidContactNumber, PHONE_VALIDATION_MESSAGE } from '../../lib/validation';
 
-interface PatronProfileModalProps {
+interface AccountProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
-  patron: PatronProfile;
   user: UserProfile;
-  onUpdateSuccess: (updatedUser: UserProfile, updatedPatron: Partial<PatronProfile>) => void;
-  onUpdatePatron?: (updated: Partial<PatronProfile>) => void;
+  onUpdateUser?: (updatedUser: UserProfile) => void;
 }
 
-export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
+export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
   isOpen,
   onClose,
-  patron,
   user,
-  onUpdateSuccess,
-  onUpdatePatron,
+  onUpdateUser,
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-
+  
   // Password Reset & Email Verification state
   const [isPasswordOtpVerified, setIsPasswordOtpVerified] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -40,9 +35,9 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
 
   // New Password fields
   const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
 
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -50,9 +45,9 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setName(patron.name || user.name || '');
-      setEmail(patron.email || user.email || '');
-      setPhone(patron.phone || user.phone || '');
+      setName(user.name || '');
+      setEmail(user.email || '');
+      setPhone(user.phone || '');
       setIsPasswordOtpVerified(false);
       setOtpSent(false);
       setOtpInput('');
@@ -61,13 +56,13 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
       setOtpSuccessMsg(null);
       setResendCooldown(0);
       setNewPassword('');
-      setConfirmPassword('');
+      setConfirmNewPassword('');
       setShowNewPassword(false);
-      setShowConfirmPassword(false);
+      setShowConfirmNewPassword(false);
       setErrorMsg(null);
       setSuccessMsg(null);
     }
-  }, [isOpen, patron, user]);
+  }, [isOpen, user]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -83,7 +78,7 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
     setOtpSuccessMsg(null);
     setErrorMsg(null);
 
-    const targetEmail = (email || user.email || patron.email || '').trim().toLowerCase();
+    const targetEmail = (email || user.email || '').trim().toLowerCase();
     if (!targetEmail) {
       setOtpErrorMsg('User email is missing.');
       return;
@@ -112,7 +107,7 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
     setOtpSuccessMsg(null);
     setErrorMsg(null);
 
-    const targetEmail = (email || user.email || patron.email || '').trim().toLowerCase();
+    const targetEmail = (email || user.email || '').trim().toLowerCase();
     const cleanOtp = otpInput.trim();
 
     if (!cleanOtp || cleanOtp.length < 6) {
@@ -137,13 +132,14 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
     }
   };
 
+  // Step 3: Save profile details and password in Supabase DB
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
 
     const trimmedName = name.trim();
-    const trimmedEmail = (email || user.email || patron.email || '').trim().toLowerCase();
+    const trimmedEmail = (email || user.email || '').trim().toLowerCase();
     const trimmedPhone = phone.trim();
 
     if (!trimmedName) {
@@ -160,8 +156,8 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
       return;
     }
 
-    // Password change validation
-    const isChangingPassword = Boolean(newPassword.trim() || confirmPassword.trim());
+    // Password reset validation if changing password
+    const isChangingPassword = Boolean(newPassword.trim() || confirmNewPassword.trim());
     if (isChangingPassword) {
       if (!isPasswordOtpVerified) {
         setErrorMsg('Please verify your email address via 6-digit code before resetting your password.');
@@ -171,8 +167,8 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
         setErrorMsg('New password must be at least 6 characters long.');
         return;
       }
-      if (newPassword !== confirmPassword) {
-        setErrorMsg('Passwords do not match. Please verify your new password.');
+      if (newPassword !== confirmNewPassword) {
+        setErrorMsg('Passwords do not match. Please ensure both password fields are identical.');
         return;
       }
     }
@@ -190,28 +186,20 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
         }
       }
 
+      // 2. Update profile fields (name, phone, email) in user_profiles and users
       const result = await updateUserProfile({
         userId: user.id,
         name: trimmedName,
         email: trimmedEmail,
         phone: trimmedPhone,
         password: isChangingPassword ? newPassword.trim() : undefined,
-        dietaryPreferences: patron.dietaryPreferences,
-        preferredSeating: patron.preferredSeating,
       });
 
       if (!result.success) {
-        setErrorMsg(result.message || 'Failed to update profile. Please try again.');
+        setErrorMsg(result.message || 'Failed to update account. Please try again.');
         setIsSaving(false);
         return;
       }
-
-      const updatedPatronData: Partial<PatronProfile> = {
-        name: trimmedName,
-        email: trimmedEmail,
-        phone: trimmedPhone,
-        monogram: trimmedName[0]?.toUpperCase() || 'M',
-      };
 
       const updatedUser: UserProfile = result.user || {
         ...user,
@@ -220,15 +208,14 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
         phone: trimmedPhone,
       };
 
-      if (onUpdatePatron) {
-        onUpdatePatron(updatedPatronData);
+      if (onUpdateUser) {
+        onUpdateUser(updatedUser);
       }
-      onUpdateSuccess(updatedUser, updatedPatronData);
 
       setSuccessMsg(
         isChangingPassword
-          ? 'Profile & password updated successfully in the database! You can now log in with your new password.'
-          : 'Profile updated successfully.'
+          ? 'Password and profile updated successfully in database! You can now log in with your new password.'
+          : 'Account profile updated successfully.'
       );
 
       setTimeout(() => {
@@ -241,26 +228,31 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
     }
   };
 
-  const inputBase = "w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-[#E8E2D5] bg-white text-xs text-[#1A1A1A] placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#1E3932]/30 focus:border-[#1E3932] transition-colors";
-  const labelBase = "block text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-1";
+  const inputBase =
+    'w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-[#E8E2D5] bg-white text-xs text-[#1A1A1A] placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-[#1E3932]/30 focus:border-[#1E3932] transition-colors';
+  const labelBase =
+    'block text-[10px] font-bold uppercase tracking-widest text-stone-500 mb-1';
+
+  const isCustomer = (user.role || 'Customer') === 'Customer';
 
   return (
     <div
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
+      className="fixed inset-0 z-[10000] flex items-center justify-center p-3 sm:p-5 overflow-y-auto"
       role="dialog"
     >
-      <div className="fixed inset-0 bg-[#081C15]/75 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-[#081C15]/80 backdrop-blur-xs" onClick={onClose} />
 
       <div className="relative w-full max-w-xl bg-[#FAF7F2] rounded-3xl shadow-2xl border border-[#C5A880]/40 overflow-hidden z-10 my-auto max-h-[92vh] flex flex-col animate-fadeIn">
+        
         {/* Header */}
         <div className="bg-gradient-to-r from-[#061610] via-[#0D2818] to-[#081C15] text-white px-6 sm:px-8 py-5 border-b border-[#C5A880]/30 flex items-center justify-between shrink-0">
           <div>
             <span className="text-[9px] uppercase tracking-[0.25em] text-[#DFC993] font-bold block mb-0.5">
-              PATRON PROFILE
+              {isCustomer ? 'PATRON PROFILE' : 'STAFF CREDENTIALS & ACCOUNT'}
             </span>
-            <h3 className="text-xl font-serif font-bold text-stone-100">
-              Edit Profile &amp; Password
+            <h3 className="text-xl font-serif font-bold text-stone-100 flex items-center gap-2">
+              <span>Account Settings &amp; Password Reset</span>
             </h3>
           </div>
           <button
@@ -277,30 +269,42 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
 
         {/* Body Form */}
         <form onSubmit={handleSave} className="p-6 sm:p-7 overflow-y-auto space-y-5">
-          {/* Patron Badge */}
-          <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-[#F4EFE6] border border-[#E8E2D5]">
-            <div className="w-12 h-12 rounded-full border border-[#C5A880] flex items-center justify-center bg-gradient-to-b from-[#0B2115] to-[#040E0A] shadow-inner shrink-0">
-              <span className="font-serif text-xl font-bold text-[#DFC993] italic">
-                {name ? name[0].toUpperCase() : patron.monogram}
-              </span>
+          
+          {/* User Badge Banner */}
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#F4EFE6] border border-[#E8E2D5]">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-full border border-[#C5A880] flex items-center justify-center bg-gradient-to-b from-[#0B2115] to-[#040E0A] shadow-inner shrink-0">
+                <span className="font-serif text-xl font-bold text-[#DFC993]">
+                  {(name || user.name || 'M')[0]?.toUpperCase()}
+                </span>
+              </div>
+              <div className="space-y-0.5">
+                <h4 className="font-serif font-bold text-base text-[#081C15]">{name || user.name}</h4>
+                <p className="text-xs text-stone-600 truncate max-w-xs">{email || user.email}</p>
+              </div>
             </div>
-            <div className="space-y-0.5">
-              <h4 className="font-serif font-bold text-base text-[#081C15]">{name || patron.name}</h4>
-              <p className="text-xs text-stone-600">
-                Mayflower Patron since {patron.memberSince} · <span className="text-[#1E3932] font-semibold">{patron.tier} Member</span>
-              </p>
+
+            <div className="text-right">
+              <span className="inline-block border border-[#C5A880]/60 text-[#081C15] bg-[#DFC993]/25 text-[10px] tracking-widest px-2.5 py-1 rounded-full font-bold uppercase shadow-2xs">
+                {user.role || 'CUSTOMER'}
+              </span>
+              {isCustomer && user.rewardPoints !== undefined && (
+                <p className="text-[10px] text-stone-500 font-semibold mt-1">
+                  {user.rewardPoints} Reward Points
+                </p>
+              )}
             </div>
           </div>
 
           {/* Feedback alerts */}
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2 animate-fadeIn">
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2 animate-fadeIn">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
               <span>{errorMsg}</span>
             </div>
           )}
           {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2 animate-fadeIn">
+            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2 animate-fadeIn">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
               <span>{successMsg}</span>
             </div>
@@ -310,7 +314,7 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
           <div className="space-y-3.5">
             <h5 className="text-xs font-bold font-serif uppercase tracking-wider text-[#1E3932] flex items-center gap-2 border-b border-[#E8E2D5] pb-1.5">
               <User className="w-3.5 h-3.5 text-[#C5A880]" />
-              Personal &amp; Contact Information
+              Profile Details
             </h5>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -330,7 +334,7 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
               </div>
 
               <div>
-                <label className={labelBase}>Email Address *</label>
+                <label className={labelBase}>Registered Email</label>
                 <div className="relative">
                   <Mail className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-3 pointer-events-none" />
                   <input
@@ -339,7 +343,7 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
                     disabled
                     placeholder="you@domain.com"
                     value={email}
-                    className={`${inputBase} opacity-80 bg-stone-100 cursor-not-allowed`}
+                    className={`${inputBase} opacity-75 bg-stone-100 cursor-not-allowed`}
                   />
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 absolute right-3 top-3 pointer-events-none" />
                 </div>
@@ -492,35 +496,35 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
                     <div className="relative">
                       <Lock className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-3 pointer-events-none" />
                       <input
-                        type={showConfirmPassword ? 'text' : 'password'}
+                        type={showConfirmNewPassword ? 'text' : 'password'}
                         minLength={6}
                         placeholder="Re-enter new password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
                         className={inputBase + ' pr-9'}
                       />
                       <button
                         type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
                         className="absolute right-3 top-2.5 text-stone-400 hover:text-stone-600 cursor-pointer"
                       >
-                        {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        {showConfirmNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   </div>
 
                   {/* Password Match Status indicator */}
-                  {newPassword && confirmPassword && (
+                  {newPassword && confirmNewPassword && (
                     <div className="sm:col-span-2 pt-1 text-[11px] font-medium flex items-center gap-1.5">
-                      {newPassword === confirmPassword ? (
+                      {newPassword === confirmNewPassword ? (
                         <span className="text-emerald-700 flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Passwords match. Ready to save!</span>
+                          Passwords match perfectly
                         </span>
                       ) : (
-                        <span className="text-amber-700 flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Passwords do not match yet.</span>
+                        <span className="text-rose-600 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-500" />
+                          Passwords do not match yet
                         </span>
                       )}
                     </div>
@@ -542,13 +546,13 @@ export const PatronProfileModal: React.FC<PatronProfileModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || (Boolean(newPassword || confirmNewPassword) && !isPasswordOtpVerified)}
               className="px-6 py-2.5 rounded-xl bg-[#081C15] hover:bg-[#0D2818] text-[#DFC993] hover:text-white border border-[#C5A880]/50 text-xs font-bold uppercase tracking-widest shadow-md transition-all cursor-pointer flex items-center gap-2 disabled:opacity-60"
             >
               {isSaving ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Updating...
+                  Saving in DB...
                 </>
               ) : (
                 <>

@@ -57,11 +57,14 @@ export const PublicWebsitePage: React.FC<PublicWebsitePageProps> = ({
 
   const handleOpenReservations = (outletName?: string) => {
     if (isStaff) return;
-    if (outletName) {
-      navigate(`/reservations?outlet=${encodeURIComponent(outletName)}`);
-    } else {
-      navigate('/reservations');
+    const targetPath = outletName
+      ? `/reservations?outlet=${encodeURIComponent(outletName)}`
+      : '/reservations';
+    if (!currentUser) {
+      navigate(`/login?redirect=${encodeURIComponent(targetPath)}`);
+      return;
     }
+    navigate(targetPath);
   };
 
   const handleOpenFranchise = () => {

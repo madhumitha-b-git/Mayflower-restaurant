@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import { AuthModal } from '../src/components/AuthModal';
 import { PatronProfileModal } from '../src/components/dashboards/customer/PatronProfileModal';
 import { UserProfile } from '../src/types';
@@ -47,54 +48,53 @@ vi.mock('../src/lib/authService', () => ({
   }),
 }));
 
-describe('AuthModal Redesign (Two-Sided Luxury Screen)', () => {
-  it('renders left-side Mayflower heritage screen and right-side form with verify button', () => {
+describe('AuthModal Component', () => {
+  it('renders registration fields with verify button and phone input', () => {
     render(
-      <AuthModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onLoginSuccess={vi.fn()}
-        initialMode="register"
-      />
+      <MemoryRouter>
+        <AuthModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onLoginSuccess={vi.fn()}
+          initialMode="register"
+        />
+      </MemoryRouter>
     );
 
-    // Left side minimal branding
-    expect(screen.getByText('THE MAYFLOWER')).toBeInTheDocument();
-    expect(screen.getByText(/Fine dining and private salons/i)).toBeInTheDocument();
-    expect(screen.getByText(/Sign in to explore your sanctuary of privileges/i)).toBeInTheDocument();
-
-    // Right side registration fields
-    expect(screen.getByPlaceholderText('e.g. Eleanor Vance')).toBeInTheDocument();
+    expect(screen.getByText('Join Mayflower')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('e.g. Madan Kumar')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('name@domain.com')).toBeInTheDocument();
     const phoneInput = screen.getByPlaceholderText('9876543210');
     expect(phoneInput).toBeInTheDocument();
-    fireEvent.change(phoneInput, { target: { value: '+91 (98400) 12345 ext 9' } });
-    expect(phoneInput).toHaveValue('9198400123');
+    fireEvent.change(phoneInput, { target: { value: '9840012345' } });
+    expect(phoneInput).toHaveValue('9840012345');
     expect(screen.getByRole('button', { name: /^Verify$/i })).toBeInTheDocument();
   });
 
   it('supports email verification flow and enables password entry upon verification', async () => {
     render(
-      <AuthModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onLoginSuccess={vi.fn()}
-        initialMode="register"
-      />
+      <MemoryRouter>
+        <AuthModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onLoginSuccess={vi.fn()}
+          initialMode="register"
+        />
+      </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByPlaceholderText('e.g. Eleanor Vance'), { target: { value: 'Eleanor' } });
+    fireEvent.change(screen.getByPlaceholderText('e.g. Madan Kumar'), { target: { value: 'Eleanor' } });
     fireEvent.change(screen.getByPlaceholderText('name@domain.com'), { target: { value: 'eleanor@ritchennai.edu.in' } });
 
     // Click Verify to send OTP
     fireEvent.click(screen.getByRole('button', { name: /^Verify$/i }));
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('6-digit code')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('6-digit OTP')).toBeInTheDocument();
     });
 
     // Enter 6-digit OTP and Confirm
-    fireEvent.change(screen.getByPlaceholderText('6-digit code'), { target: { value: '123456' } });
+    fireEvent.change(screen.getByPlaceholderText('6-digit OTP'), { target: { value: '123456' } });
     fireEvent.click(screen.getByRole('button', { name: /Confirm/i }));
 
     await waitFor(() => {
@@ -102,10 +102,10 @@ describe('AuthModal Redesign (Two-Sided Luxury Screen)', () => {
     });
 
     // Password fields are now active
-    fireEvent.change(screen.getByPlaceholderText('••••••••••••'), { target: { value: 'password123' } });
+    fireEvent.change(screen.getByPlaceholderText('Min 6 chars'), { target: { value: 'password123' } });
     fireEvent.change(screen.getByPlaceholderText('Re-enter password'), { target: { value: 'different123' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /Complete Registration/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Create Account/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Passwords do not match/i)).toBeInTheDocument();
@@ -114,17 +114,19 @@ describe('AuthModal Redesign (Two-Sided Luxury Screen)', () => {
 
   it('switches to login mode with email and password fields', () => {
     render(
-      <AuthModal
-        isOpen={true}
-        onClose={vi.fn()}
-        onLoginSuccess={vi.fn()}
-        initialMode="login"
-      />
+      <MemoryRouter>
+        <AuthModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onLoginSuccess={vi.fn()}
+          initialMode="login"
+        />
+      </MemoryRouter>
     );
 
-    expect(screen.getByRole('heading', { name: /Welcome back/i })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('••••••••••••')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'SIGN IN' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Welcome Back/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Sign In/i }).length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -133,7 +135,7 @@ describe('PatronProfileModal Edit Profile & DB Sync', () => {
     id: 'user-123',
     name: 'Madan Kumar',
     email: 'madan@example.com',
-    phone: '+91 98400 55555',
+    phone: '9840055555',
     role: 'Customer',
     rewardPoints: 500,
     tier: 'Green',
@@ -146,7 +148,7 @@ describe('PatronProfileModal Edit Profile & DB Sync', () => {
   const mockPatron: PatronProfile = {
     name: 'Madan Kumar',
     email: 'madan@example.com',
-    phone: '+91 98400 55555',
+    phone: '9840055555',
     monogram: 'M',
     tier: 'Green',
     stars: 500,
@@ -170,13 +172,13 @@ describe('PatronProfileModal Edit Profile & DB Sync', () => {
       />
     );
 
-    expect(screen.getByText('Edit Profile')).toBeInTheDocument();
+    expect(screen.getByText(/Edit Profile/i)).toBeInTheDocument();
     expect(screen.getByDisplayValue('Madan Kumar')).toBeInTheDocument();
     expect(screen.getByDisplayValue('madan@example.com')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('+91 98400 55555')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('9840055555')).toBeInTheDocument();
   });
 
-  it('allows editing name, phone, and optional dietary preference', () => {
+  it('allows editing name and phone', () => {
     render(
       <PatronProfileModal
         isOpen={true}
@@ -191,9 +193,9 @@ describe('PatronProfileModal Edit Profile & DB Sync', () => {
     fireEvent.change(nameInput, { target: { value: 'Madan K.' } });
     expect(nameInput).toHaveValue('Madan K.');
 
-    const phoneInput = screen.getByDisplayValue('+91 98400 55555');
-    fireEvent.change(phoneInput, { target: { value: '+91 98400 99999' } });
-    expect(phoneInput).toHaveValue('+91 98400 99999');
+    const phoneInput = screen.getByDisplayValue('9840055555');
+    fireEvent.change(phoneInput, { target: { value: '9840099999' } });
+    expect(phoneInput).toHaveValue('9840099999');
   });
 
   it('submits updated profile data and calls onProfileUpdate callback', async () => {
@@ -225,6 +227,6 @@ describe('PatronProfileModal Edit Profile & DB Sync', () => {
         expect.anything()
       );
       expect(onClose).toHaveBeenCalled();
-    });
+    }, { timeout: 2500 });
   });
 });

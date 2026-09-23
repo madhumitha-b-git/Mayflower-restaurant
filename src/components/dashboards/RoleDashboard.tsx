@@ -8,6 +8,7 @@ import { ChefDashboard } from './ChefDashboard';
 import { HRDashboard } from './HRDashboard';
 import { AccountantDashboard } from './AccountantDashboard';
 import { CustomerDashboard } from './CustomerDashboard';
+import { AccountProfileModal } from './AccountProfileModal';
 import { getRoleHomePath, useSafeNavigate, useSafeLocation } from '../../routes/roleRoutes';
 
 interface Props {
@@ -31,6 +32,7 @@ export const RoleDashboard: React.FC<Props> = ({
   const location = useSafeLocation();
   const userRole = user.role || 'Customer';
   const isSuperAdmin = userRole === 'SuperAdmin';
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
 
   // SuperAdmin can switch views; all other roles are strictly locked to their own dashboard
   const [activeRole, setActiveRole] = useState<UserRole>(() => {
@@ -57,6 +59,20 @@ export const RoleDashboard: React.FC<Props> = ({
       else if (location.pathname.startsWith('/superadmin')) setActiveRole('SuperAdmin');
     }
   }, [location.pathname, isSuperAdmin]);
+
+  // Global event listener for opening account / profile modal from anywhere inside dashboards
+  useEffect(() => {
+    const handleOpenAccount = () => {
+      setIsAccountModalOpen(true);
+    };
+
+    window.addEventListener('open-account-modal', handleOpenAccount);
+    window.addEventListener('open-patron-profile', handleOpenAccount);
+    return () => {
+      window.removeEventListener('open-account-modal', handleOpenAccount);
+      window.removeEventListener('open-patron-profile', handleOpenAccount);
+    };
+  }, []);
 
   const handleSwitchRole = (rolePathOrName: string) => {
     if (!isSuperAdmin) return;
@@ -151,31 +167,22 @@ export const RoleDashboard: React.FC<Props> = ({
 
         <div className="flex items-center gap-3 sm:gap-4 text-xs tracking-wider">
           <button
-            onClick={() => {
-              if (activeRole === 'Customer') {
-                navigate('/customer/profile');
-                window.dispatchEvent(new CustomEvent('open-patron-profile'));
-              }
-            }}
-            className={`text-stone-300 hover:text-[#DFC993] transition-colors text-left focus:outline-none ${activeRole === 'Customer' ? 'cursor-pointer' : 'cursor-default'}`}
-            title={activeRole === 'Customer' ? 'View Patron Profile' : undefined}
+            onClick={() => setIsAccountModalOpen(true)}
+            className="text-stone-300 hover:text-[#DFC993] transition-colors text-left focus:outline-none cursor-pointer"
+            title="View & Edit Account Details / Reset Password"
           >
-            Logged in as <strong className="text-white font-semibold ml-0.5">{user.name}</strong>
+            Logged in as <strong className="text-white font-semibold ml-0.5 underline decoration-[#C5A880]/40 underline-offset-2">{user.name}</strong>
           </button>
           <span className="border border-[#C5A880]/70 text-[#DFC993] bg-[#C5A880]/10 text-[10px] tracking-widest px-2.5 py-0.5 rounded font-semibold uppercase shadow-xs">
             {isSuperAdmin && activeRole !== 'SuperAdmin' ? `VIEWING: ${activeRole.toUpperCase()}` : (userRole || 'CUSTOMER').toUpperCase()}
           </span>
-          {activeRole === 'Customer' && (
-            <button
-              onClick={() => {
-                navigate('/customer/profile');
-                window.dispatchEvent(new CustomEvent('open-patron-profile'));
-              }}
-              className="text-stone-400 hover:text-[#DFC993] uppercase font-semibold text-[11px] tracking-widest transition-colors pl-1 cursor-pointer focus:outline-none"
-            >
-              ACCOUNT
-            </button>
-          )}
+          <button
+            onClick={() => setIsAccountModalOpen(true)}
+            className="text-stone-400 hover:text-[#DFC993] uppercase font-semibold text-[11px] tracking-widest transition-colors pl-1 cursor-pointer focus:outline-none"
+            title="Open Account Section & Reset Password"
+          >
+            ACCOUNT
+          </button>
           <button
             onClick={handleLogoutClick}
             className="text-stone-400 hover:text-red-300 uppercase font-semibold text-[11px] tracking-widest transition-colors pl-1 cursor-pointer focus:outline-none ml-1 border-l border-[#C5A880]/30 pl-3"
@@ -189,6 +196,14 @@ export const RoleDashboard: React.FC<Props> = ({
       <div className="flex-1 pt-11">
         {renderDashboard()}
       </div>
+
+      {/* Universal Account & Reset Password Modal for All Roles */}
+      <AccountProfileModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+        user={user}
+        onUpdateUser={onUpdateUser}
+      />
     </div>
   );
 };

@@ -22,8 +22,61 @@ const STAFF_EMAIL_ROLE_MAP: Record<string, UserRole> = {
 };
 
 /**
+ * Check whether an email is already registered in staff map, local storage, or Supabase tables
+ */
+export const isEmailRegistered = async (email: string): Promise<boolean> => {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) return false;
+
+  // 1. Check known staff credentials
+  if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
+    return true;
+  }
+
+  // 2. Check local storage stored users
+  try {
+    const localUsers = getStoredUsers();
+    if (localUsers.some(u => u.email.toLowerCase() === normalizedEmail)) {
+      return true;
+    }
+  } catch {}
+
+  // 3. Check public.users table in Supabase
+  try {
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existingUser?.id) {
+      return true;
+    }
+  } catch (err) {
+    console.warn('[isEmailRegistered users check note]:', err);
+  }
+
+  // 4. Check public.user_profiles table in Supabase
+  try {
+    const { data: existingProfile } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .ilike('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existingProfile?.id) {
+      return true;
+    }
+  } catch (err) {
+    console.warn('[isEmailRegistered user_profiles check note]:', err);
+  }
+
+  return false;
+};
+
+/**
  * Request an email verification OTP via official Gmail API
- * Pre-checks if the email is already registered before dispatching OTP for registration.
+ * Pre-checks if the email is already registered in DB before dispatching OTP for registration.
  */
 export const requestEmailOtp = async (
   email: string,
@@ -34,36 +87,14 @@ export const requestEmailOtp = async (
     return { success: false, message: 'Please enter a valid email address.' };
   }
 
-  // Pre-check if email already exists when registering
+  // Pre-check if email already exists in DB when registering
   if (purpose === 'registration') {
-    try {
-      if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
-        return { success: false, message: 'This email is already registered. Please sign in instead.' };
-      }
-
-      // Check public.users
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .ilike('email', normalizedEmail)
-        .maybeSingle();
-
-      if (existingUser) {
-        return { success: false, message: 'This email is already registered. Please sign in instead.' };
-      }
-
-      // Check public.user_profiles
-      const { data: existingProfile } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .ilike('email', normalizedEmail)
-        .maybeSingle();
-
-      if (existingProfile) {
-        return { success: false, message: 'This email is already registered. Please sign in instead.' };
-      }
-    } catch (e) {
-      console.warn('Pre-registration check note:', e);
+    const alreadyRegistered = await isEmailRegistered(normalizedEmail);
+    if (alreadyRegistered) {
+      return {
+        success: false,
+        message: 'This email is already registered. Try logging in again.',
+      };
     }
   }
 
@@ -181,91 +212,73 @@ export const verifyEmailOtp = async (
 export const supabaseLogin = async (email: string, password: string): Promise<AuthResult> => {
   const normalizedEmail = email.trim().toLowerCase();
 
-  // 0. If staff email in SEED_STAFF, check local staff login first
-  if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
-    const localRes = loginWithPassword(normalizedEmail, password);
-    if (localRes.success && localRes.user) {
-      localRes.user.role = STAFF_EMAIL_ROLE_MAP[normalizedEmail];
-      localStorage.setItem('mayflower_current_user_id', localRes.user.id);
-      localStorage.setItem('mayflower_current_user', JSON.stringify(localRes.user));
-      return localRes;
-    }
-  }
+  if (isSupabaseConfigured) {
+    // 1. Direct database lookup in public.users (where password_hash is stored)
+    try {
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('*')
+        .ilike('email', normalizedEmail)
+        .maybeSingle();
 
-  if (!isSupabaseConfigured) {
-    const localRes = loginWithPassword(normalizedEmail, password);
-    if (localRes.success && localRes.user) {
-      localStorage.setItem('mayflower_current_user_id', localRes.user.id);
-      localStorage.setItem('mayflower_current_user', JSON.stringify(localRes.user));
-    }
-    return localRes;
-  }
+      if (userRow) {
+        // Verify SHA-256 hash or plain password
+        const isPasswordValid = await verifyPassword(password, userRow.password_hash);
+        if (!isPasswordValid) {
+          return { success: false, message: 'Incorrect password. Please try again.' };
+        }
 
-  // 1. Direct database lookup in public.users (where password_hash is stored)
-  try {
-    const { data: userRow } = await supabase
-      .from('users')
-      .select('*')
-      .ilike('email', normalizedEmail)
-      .maybeSingle();
-
-    if (userRow) {
-      // Verify SHA-256 hash or plain password
-      const isPasswordValid = await verifyPassword(password, userRow.password_hash);
-      if (!isPasswordValid) {
-        return { success: false, message: 'Incorrect password. Please try again.' };
-      }
-
-      // Password matches! Fetch or construct full patron profile
-      let profile = await fetchUserProfile(userRow.id);
-      if (!profile) {
-        const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        profile = {
-          id: userRow.id,
-          name: userRow.name || normalizedEmail.split('@')[0],
-          email: normalizedEmail,
-          phone: userRow.phone || '',
-          role: (userRow.role as UserRole) || 'Customer',
-          rewardPoints: 200,
-          tier: 'Green',
-          totalVisits: 0,
-          joinedDate: todayStr,
-          transactions: [],
-          reservations: [],
-        };
-
-        try {
-          await supabase.from('user_profiles').upsert({
+        // Password matches! Fetch or construct full user profile
+        let profile = await fetchUserProfile(userRow.id);
+        if (!profile) {
+          const todayStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+          profile = {
             id: userRow.id,
-            name: profile.name,
+            name: userRow.name || normalizedEmail.split('@')[0],
             email: normalizedEmail,
-            phone: profile.phone,
-            role: profile.role,
-            reward_points: 200,
+            phone: userRow.phone || '',
+            role: (userRow.role as UserRole) || STAFF_EMAIL_ROLE_MAP[normalizedEmail] || 'Customer',
+            rewardPoints: 200,
             tier: 'Green',
-            total_visits: 0,
-            joined_date: todayStr,
+            totalVisits: 0,
+            joinedDate: todayStr,
             transactions: [],
             reservations: [],
-          }, { onConflict: 'id' });
-        } catch {}
-      }
+          };
 
-      if (userRow.phone && !profile.phone) {
-        profile.phone = userRow.phone;
-      }
-      if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
-        profile.role = STAFF_EMAIL_ROLE_MAP[normalizedEmail];
-      }
+          try {
+            await supabase.from('user_profiles').upsert({
+              id: userRow.id,
+              name: profile.name,
+              email: normalizedEmail,
+              phone: profile.phone,
+              role: profile.role,
+              reward_points: 200,
+              tier: 'Green',
+              total_visits: 0,
+              joined_date: todayStr,
+              transactions: [],
+              reservations: [],
+            }, { onConflict: 'id' });
+          } catch {}
+        }
 
-      // Establish session
-      localStorage.setItem('mayflower_current_user_id', userRow.id);
-      localStorage.setItem('mayflower_current_user', JSON.stringify(profile));
+        if (userRow.phone && !profile.phone) {
+          profile.phone = userRow.phone;
+        }
+        if (STAFF_EMAIL_ROLE_MAP[normalizedEmail]) {
+          profile.role = STAFF_EMAIL_ROLE_MAP[normalizedEmail];
+        }
 
-      return { success: true, user: profile };
+        // Establish session
+        localStorage.setItem('mayflower_current_user_id', userRow.id);
+        localStorage.setItem('mayflower_current_user', JSON.stringify(profile));
+
+        return { success: true, user: profile };
+      }
+    } catch (err) {
+      console.warn('[supabaseLogin direct users lookup note]:', err);
     }
-  } catch (err) {
-    console.warn('[supabaseLogin direct users lookup note]:', err);
   }
 
   // 2. Check local SEED_STAFF / userStorage fallback for demo accounts
@@ -699,17 +712,9 @@ export const updateUserProfile = async (
   const trimmedPhone = (phone || '').trim();
 
   try {
-    // 1. If password is provided, hash and update password_hash in public.users
+    // 1. If password is provided, securely update password across Supabase users table and storage
     if (password && password.trim().length >= 6) {
-      const newHash = await hashPassword(password.trim());
-      try {
-        await supabase
-          .from('users')
-          .update({ password_hash: newHash, updated_at: new Date().toISOString() })
-          .eq('id', userId);
-      } catch (pwdErr) {
-        console.warn('Password update in users note:', pwdErr);
-      }
+      await updateUserPassword(password.trim(), normalizedEmail);
     }
 
     // 2. Update public.user_profiles in Supabase
@@ -735,7 +740,7 @@ export const updateUserProfile = async (
       console.warn('user_profiles update note:', profError.message);
     }
 
-    // 3. Update public.users table as well
+    // 3. Update public.users table with name & phone
     try {
       await supabase
         .from('users')
@@ -895,23 +900,88 @@ export const updateUserPassword = async (
     const cachedUser = localStorage.getItem('mayflower_current_user');
     if (cachedUser) {
       try {
-        targetEmail = JSON.parse(cachedUser).email;
+        targetEmail = JSON.parse(cachedUser).email?.toLowerCase();
       } catch {}
     }
   }
 
   if (targetEmail) {
     try {
-      await supabase.from('users').update({ password_hash: newHash }).ilike('email', targetEmail);
+      // 1. Update in Supabase users table by email
+      const { data: updatedRows, error: updateError } = await supabase
+        .from('users')
+        .update({
+          password_hash: newHash,
+          updated_at: new Date().toISOString()
+        })
+        .ilike('email', targetEmail)
+        .select();
 
-      // Update local storage backup if present
-      const users = getStoredUsers();
-      const idx = users.findIndex(u => u.email.toLowerCase() === targetEmail);
-      if (idx >= 0) {
-        users[idx].password = trimmed;
-        saveStoredUsers(users);
+      if (updateError) {
+        console.warn('[updateUserPassword] users update note:', updateError);
       }
-      return { success: true, message: 'Password updated successfully. You can now sign in with your new password.' };
+
+      // If no row was updated or user didn't exist in users table yet, ensure it exists!
+      if (!updatedRows || updatedRows.length === 0) {
+        let userId = localStorage.getItem('mayflower_current_user_id');
+        let userName = targetEmail.split('@')[0];
+        let userRole = STAFF_EMAIL_ROLE_MAP[targetEmail] || 'Customer';
+
+        try {
+          const { data: profData } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .ilike('email', targetEmail)
+            .maybeSingle();
+
+          if (profData) {
+            userId = profData.id || userId;
+            userName = profData.name || userName;
+            userRole = (profData.role as UserRole) || userRole;
+          }
+        } catch {}
+
+        if (!userId) {
+          userId = typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `usr-${Date.now()}`;
+        }
+
+        try {
+          await supabase.from('users').upsert({
+            id: userId,
+            email: targetEmail,
+            name: userName,
+            role: userRole,
+            password_hash: newHash,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'email' });
+        } catch (upsertErr) {
+          console.warn('[updateUserPassword] users upsert note:', upsertErr);
+        }
+      }
+
+      // 2. Update local storage backup (getStoredUsers / saveStoredUsers)
+      try {
+        const users = getStoredUsers();
+        const idx = users.findIndex(u => u.email.toLowerCase() === targetEmail);
+        if (idx >= 0) {
+          users[idx].password = trimmed;
+          saveStoredUsers(users);
+        } else {
+          const cachedUser = localStorage.getItem('mayflower_current_user');
+          if (cachedUser) {
+            const parsed = JSON.parse(cachedUser);
+            saveStoredUsers([...users, { ...parsed, password: trimmed }]);
+          }
+        }
+      } catch {}
+
+      return {
+        success: true,
+        message: 'Password updated successfully in database. You can now sign in with your new password.',
+      };
     } catch (err: any) {
       return { success: false, message: err?.message || 'Failed to update password.' };
     }

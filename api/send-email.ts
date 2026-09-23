@@ -360,6 +360,59 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ success: false, error: 'Email address is required.' });
     }
 
+    // Pre-check if email is already registered when purpose is 'registration'
+    if (body.purpose === 'registration') {
+      const isStaffEmail = [
+        'superadmin@gmail.com', 'owner@gmail.com', 'admin@gmail.com',
+        'manager@gmail.com', 'chef@gmail.com', 'hr@gmail.com', 'accountant@gmail.com'
+      ].includes(targetEmail);
+
+      if (isStaffEmail) {
+        return res.status(400).json({
+          success: false,
+          error: 'This email is already registered. Try logging in again.',
+        });
+      }
+
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const checkUserRes = await fetch(`${supabaseUrl}/rest/v1/users?email=ilike.${encodeURIComponent(targetEmail)}&select=id&limit=1`, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+          });
+          if (checkUserRes.ok) {
+            const users = await checkUserRes.json();
+            if (Array.isArray(users) && users.length > 0) {
+              return res.status(400).json({
+                success: false,
+                error: 'This email is already registered. Try logging in again.',
+              });
+            }
+          }
+
+          const checkProfileRes = await fetch(`${supabaseUrl}/rest/v1/user_profiles?email=ilike.${encodeURIComponent(targetEmail)}&select=id&limit=1`, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+          });
+          if (checkProfileRes.ok) {
+            const profiles = await checkProfileRes.json();
+            if (Array.isArray(profiles) && profiles.length > 0) {
+              return res.status(400).json({
+                success: false,
+                error: 'This email is already registered. Try logging in again.',
+              });
+            }
+          }
+        } catch (dbErr) {
+          console.warn('[api/send-email] DB pre-check note:', dbErr);
+        }
+      }
+    }
+
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     saveOtp(targetEmail, otpCode);
 

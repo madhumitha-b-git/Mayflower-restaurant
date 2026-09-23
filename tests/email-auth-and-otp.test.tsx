@@ -13,6 +13,7 @@ import {
 } from '../src/lib/authService';
 import { ForgotPasswordPage } from '../src/pages/ForgotPasswordPage';
 import { VerifyEmailPage } from '../src/pages/VerifyEmailPage';
+import { LoginPage } from '../src/pages/LoginPage';
 
 // Mock Supabase Client (Direct Database)
 vi.mock('../src/lib/supabaseClient', () => ({
@@ -313,6 +314,104 @@ describe('VerifyEmailPage UI Flow', () => {
           method: 'POST',
         })
       );
+    });
+  });
+});
+
+describe('LoginPage & Duplicate Email Registration Check', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows already registered message and sign in option when email is already in database', async () => {
+    render(
+      <MemoryRouter initialEntries={['/login?mode=register']}>
+        <LoginPage currentUser={null} onLoginSuccess={vi.fn()} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Patron Registration')).toBeInTheDocument();
+
+    // Enter email of existing user
+    const emailInput = screen.getByPlaceholderText('name@domain.com');
+    fireEvent.change(emailInput, { target: { value: 'patron@example.com' } });
+
+    // Click Verify
+    const verifyButton = screen.getByRole('button', { name: /^Verify$/i });
+    fireEvent.click(verifyButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/already registered! Try logging in again/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Sign In Instead/i })).toBeInTheDocument();
+    });
+  });
+});
+
+describe('Dashboard Account Section Reset Password with Email Verification', () => {
+  it('requires email verification before unlocking new password fields and updates database', async () => {
+    const { AccountProfileModal } = await import('../src/components/dashboards/AccountProfileModal');
+    const mockUser = {
+      id: 'usr-100',
+      name: 'Madan Kumar',
+      email: 'patron@example.com',
+      phone: '9876543210',
+      role: 'Customer' as const,
+      rewardPoints: 300,
+      tier: 'Green' as const,
+      totalVisits: 2,
+      joinedDate: '10 Jan 2026',
+      transactions: [],
+      reservations: [],
+    };
+    const onUpdateUserMock = vi.fn();
+    const onCloseMock = vi.fn();
+
+    render(
+      <AccountProfileModal
+        isOpen={true}
+        onClose={onCloseMock}
+        user={mockUser}
+        onUpdateUser={onUpdateUserMock}
+      />
+    );
+
+    expect(screen.getByText('Reset / Change Password')).toBeInTheDocument();
+    expect(screen.getByText('Email Verification Step')).toBeInTheDocument();
+
+    // 1. Click Send Verification Code
+    const sendOtpBtn = screen.getByRole('button', { name: /Send Verification Code to Email/i });
+    fireEvent.click(sendOtpBtn);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Enter 6-digit code')).toBeInTheDocument();
+    });
+
+    // 2. Enter 6-digit OTP code and verify
+    const otpInput = screen.getByPlaceholderText('Enter 6-digit code');
+    fireEvent.change(otpInput, { target: { value: '123456' } });
+
+    const verifyOtpBtn = screen.getByRole('button', { name: /Verify Code/i });
+    fireEvent.click(verifyOtpBtn);
+
+    // 3. Once verified, new password fields are unlocked
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Min 6 characters')).toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Re-enter new password')).toBeInTheDocument();
+    });
+
+    // 4. Enter and confirm new password
+    const newPwdInput = screen.getByPlaceholderText('Min 6 characters');
+    const confirmPwdInput = screen.getByPlaceholderText('Re-enter new password');
+    fireEvent.change(newPwdInput, { target: { value: 'newsecret123' } });
+    fireEvent.change(confirmPwdInput, { target: { value: 'newsecret123' } });
+
+    expect(screen.getByText(/Passwords match/i)).toBeInTheDocument();
+
+    // 5. Submit changes
+    fireEvent.click(screen.getByRole('button', { name: /Save Changes/i }));
+
+    await waitFor(() => {
+      expect(supabase.from).toHaveBeenCalledWith('users');
     });
   });
 });

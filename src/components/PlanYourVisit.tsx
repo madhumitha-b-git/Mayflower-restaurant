@@ -5,7 +5,7 @@ import { useOutlets } from '../data/outletStorage';
 import { 
   Calendar, Sparkles, MapPin, Clock, ArrowRight, ArrowLeft, 
   CheckCircle2, Heart, Download, RefreshCw, X, 
-  Compass, Utensils
+  Compass, Utensils, Lock
 } from 'lucide-react';
 
 import { UserProfile, UserReservationRecord } from '../types';
@@ -355,8 +355,34 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
         </div>
 
         <>
-            {/* Multi-Step Progress Tracker Bar (Steps 1 to 7) */}
-            {reservation.step <= 7 && (
+          {/* Patron Login Required Banner if unauthenticated */}
+          {!currentUser && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[#081C15] text-[#DFC993] flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-[#081C15] uppercase tracking-wider">
+                    Patron Login / Registration Required
+                  </h4>
+                  <p className="text-[11px] text-stone-600">
+                    Please sign in or create an account before reserving a table to guarantee your sanctuary seating.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onRequestSignIn}
+                className="px-5 py-2 rounded-xl bg-[#081C15] hover:bg-[#122e23] text-[#DFC993] hover:text-white text-xs uppercase tracking-wider font-bold transition-all shrink-0 cursor-pointer shadow-xs"
+              >
+                Sign In / Register
+              </button>
+            </div>
+          )}
+
+          {/* Multi-Step Progress Tracker Bar (Steps 1 to 7) */}
+          {reservation.step <= 7 && (
           <div className="mb-10">
             <div className="overflow-x-auto no-scrollbar pb-2">
               <div className="flex items-center justify-between min-w-[620px] text-xs">
@@ -1294,10 +1320,19 @@ export const PlanYourVisit: React.FC<PlanYourVisitProps> = ({
                         <button
                           type="submit"
                           id="btn-confirm-reservation-final"
-                          className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#5A5A40] hover:bg-[#4A4A30] text-white text-[11px] uppercase tracking-widest font-bold shadow-sm transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer"
+                          className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#081C15] hover:bg-[#122e23] text-white text-[11px] uppercase tracking-widest font-bold shadow-md transition-all duration-300 flex items-center justify-center space-x-2 cursor-pointer"
                         >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Confirm Reservation</span>
+                          {currentUser ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 text-[#DFC993]" />
+                              <span>Confirm Reservation</span>
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="w-4 h-4 text-[#DFC993]" />
+                              <span>Sign In / Register to Reserve Table</span>
+                            </>
+                          )}
                         </button>
 
                         <button

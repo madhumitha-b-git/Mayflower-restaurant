@@ -57,6 +57,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpSuccessMsg, setOtpSuccessMsg] = useState<string | null>(null);
   const [otpErrorMsg, setOtpErrorMsg] = useState<string | null>(null);
+  const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
 
   // If user is already authenticated, redirect to appropriate portal
   useEffect(() => {
@@ -113,12 +114,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
   };
 
   /**
-   * Step 1: Send OTP to verify email before setting password
+   * Step 1: Send OTP to verify email (for registration)
    */
   const handleSendVerificationOtp = async () => {
     setOtpErrorMsg(null);
     setOtpSuccessMsg(null);
     setErrorMsg(null);
+    setIsAlreadyRegistered(false);
 
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
@@ -141,6 +143,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
         if (cached) setOtpInput(cached);
       } else {
         setOtpErrorMsg(res.message);
+        if (res.message?.toLowerCase().includes('already registered')) {
+          setIsAlreadyRegistered(true);
+        }
       }
     } catch {
       setOtpErrorMsg('Failed to dispatch verification code. Please try again.');
@@ -224,6 +229,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
         handlePostAuthRedirect(res.user);
       } else {
         setErrorMsg(res.message || 'Registration failed. Please try again.');
+        if (res.message?.toLowerCase().includes('already registered')) {
+          setIsAlreadyRegistered(true);
+        }
       }
     } catch {
       setErrorMsg('An unexpected error occurred during registration.');
@@ -306,7 +314,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
           </span>
           <h2 className="font-serif text-2xl md:text-3xl font-light text-white leading-tight">
             The Mayflower <br />
-            <span className="italic text-[#DFC993] font-normal">Patron Experience</span>
+            <span className="italic text-[#DFC993] font-normal">
+              Patron Experience
+            </span>
           </h2>
           <p className="mt-4 text-xs text-stone-300 leading-relaxed font-light max-w-xs">
             Sign in to manage table reservations, review loyalty rewards, and access your personalized dining profile across all Chennai sanctuaries.
@@ -387,7 +397,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
               <div className="flex border-b border-[#E8E4DB]">
                 <button
                   type="button"
-                  onClick={() => { setAuthMode('login'); setErrorMsg(null); }}
+                  onClick={() => {
+                    setAuthMode('login');
+                    setErrorMsg(null);
+                    setOtpErrorMsg(null);
+                    setOtpSuccessMsg(null);
+                    setIsAlreadyRegistered(false);
+                  }}
                   className={`flex-1 pb-3 text-xs uppercase tracking-widest font-bold text-center transition-colors cursor-pointer border-b-2 ${
                     authMode === 'login'
                       ? 'border-[#081C15] text-[#081C15]'
@@ -398,7 +414,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setAuthMode('register'); setErrorMsg(null); }}
+                  onClick={() => {
+                    setAuthMode('register');
+                    setErrorMsg(null);
+                    setOtpErrorMsg(null);
+                    setOtpSuccessMsg(null);
+                    setIsAlreadyRegistered(false);
+                  }}
                   className={`flex-1 pb-3 text-xs uppercase tracking-widest font-bold text-center transition-colors cursor-pointer border-b-2 ${
                     authMode === 'register'
                       ? 'border-[#081C15] text-[#081C15]'
@@ -439,7 +461,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                       </label>
                       <Link
                         to="/forgot-password"
-                        className="text-[11px] text-stone-500 hover:text-stone-900 transition-colors underline cursor-pointer"
+                        className="text-[11px] text-stone-500 hover:text-stone-900 transition-colors underline"
                       >
                         Forgot password?
                       </Link>
@@ -470,10 +492,39 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                   >
                     {loading ? 'Signing In...' : 'Sign In'}
                   </button>
+
+                  <div className="text-center pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('register');
+                        setErrorMsg(null);
+                      }}
+                      className="text-xs text-stone-500 hover:text-stone-900 underline cursor-pointer"
+                    >
+                      Need an account? Register here
+                    </button>
+                  </div>
                 </form>
               ) : (
-                /* Registration Form with Email Pre-Verification OTP */
+                /* Registration Form with Email Pre-Verification OTP & Duplicate Email Check */
                 <form onSubmit={handleRegister} className="space-y-3.5">
+                  <div className="flex items-center justify-between pb-1">
+                    <span className="text-[10px] uppercase tracking-widest font-bold text-[#5A5A40]">
+                      Patron Registration
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('login');
+                        setErrorMsg(null);
+                      }}
+                      className="text-[11px] text-stone-600 hover:text-[#081C15] underline font-medium cursor-pointer transition-colors"
+                    >
+                      Already registered? Sign in
+                    </button>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[10px] uppercase tracking-widest font-bold text-[#5A5A40] mb-1">
@@ -532,6 +583,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                             setOtpSent(false);
                             setOtpErrorMsg(null);
                             setOtpSuccessMsg(null);
+                            setIsAlreadyRegistered(false);
                           }}
                           placeholder="name@domain.com"
                           className={`w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] ${
@@ -560,6 +612,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                         </button>
                       )}
                     </div>
+
+                    {/* Already Registered Notification Banner with quick actions */}
+                    {isAlreadyRegistered && (
+                      <div className="mt-2.5 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2 animate-fadeIn">
+                        <div className="text-xs text-amber-900 font-semibold flex items-center gap-1.5">
+                          <span>⚠️ Already registered! Try logging in again.</span>
+                        </div>
+                        <p className="text-[11px] text-amber-800">
+                          This email address is already registered in our sanctuary system.
+                        </p>
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthMode('login');
+                              setErrorMsg(null);
+                            }}
+                            className="px-3 py-1 bg-[#081C15] text-white rounded-lg text-xs font-bold hover:bg-[#122e23] cursor-pointer"
+                          >
+                            Sign In Instead
+                          </button>
+                          <Link
+                            to="/forgot-password"
+                            className="px-3 py-1 bg-white border border-stone-300 text-stone-800 rounded-lg text-xs font-semibold hover:bg-stone-50 cursor-pointer text-center"
+                          >
+                            Forgot Password?
+                          </Link>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Inline OTP Verification Section when otpSent & not verified */}
                     {otpSent && !isEmailVerified && (
