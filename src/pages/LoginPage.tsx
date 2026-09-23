@@ -202,8 +202,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
     }
 
     if (!isEmailVerified) {
-      // Auto-verify valid email format to never block patron account creation
-      setIsEmailVerified(true);
+      setErrorMsg('Please verify your email address by entering the 6-digit code sent to your inbox before proceeding.');
+      return;
     }
 
     if (!name.trim() || !email.trim() || !password.trim()) {
@@ -727,15 +727,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                           type={showPassword ? 'text' : 'password'}
                           required
                           minLength={6}
+                          disabled={!isEmailVerified}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Min 6 chars"
-                          className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9"
+                          placeholder={isEmailVerified ? "Min 6 chars" : "Verify email above first"}
+                          className={`w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9 ${
+                            !isEmailVerified ? 'opacity-50 cursor-not-allowed bg-stone-100' : ''
+                          }`}
                         />
                         <button
                           type="button"
+                          disabled={!isEmailVerified}
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer disabled:opacity-40"
                         >
                           {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
@@ -751,15 +755,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
                           type={showConfirmPassword ? 'text' : 'password'}
                           required
                           minLength={6}
+                          disabled={!isEmailVerified}
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Re-enter password"
-                          className="w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9"
+                          placeholder={isEmailVerified ? "Re-enter password" : "Verify email above first"}
+                          className={`w-full px-3.5 py-2 bg-[#FAF7F2] border border-[#E8E4DB] rounded-xl text-sm focus:outline-none focus:border-[#081C15] focus:ring-1 focus:ring-[#081C15] pr-9 ${
+                            !isEmailVerified ? 'opacity-50 cursor-not-allowed bg-stone-100' : ''
+                          }`}
                         />
                         <button
                           type="button"
+                          disabled={!isEmailVerified}
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer disabled:opacity-40"
                         >
                           {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
@@ -769,14 +777,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ currentUser, onLoginSucces
 
                   <button
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || !isEmailVerified}
                     className="w-full py-3.5 rounded-xl bg-[#081C15] hover:bg-[#122e23] text-white text-xs uppercase tracking-widest font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-md mt-2"
                   >
                     {loading
                       ? 'Creating Account...'
                       : isEmailVerified
                       ? 'Create Account'
-                      : 'Verify & Create Account'}
+                      : 'Verify Email to Enable Registration'}
                   </button>
                 </form>
               )}

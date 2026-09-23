@@ -188,7 +188,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
 
     if (!isEmailVerified) {
-      setIsEmailVerified(true);
+      setErrorMsg('Please verify your email address by entering the 6-digit code sent to your inbox before proceeding.');
+      return;
     }
 
     if (!name.trim()) {
